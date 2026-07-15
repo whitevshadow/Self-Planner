@@ -18,7 +18,7 @@ from ..schemas import (
     ScheduleBlockOut,
     ScheduleBlockPatch,
 )
-from ..services import estimator, planner
+from ..services import planner, triage
 
 router = APIRouter(prefix="/api", tags=["planner"])
 
@@ -76,11 +76,16 @@ def delete_busy(block_id: uuid.UUID, db: Session = Depends(get_db)):
 
 @router.post("/plan", response_model=PlanResponse)
 def run_plan(db: Session = Depends(get_db)):
-    """Estimate unestimated 'mine' tasks, then replan the schedule."""
+    """Triage under-specified 'mine' tasks, then replan the schedule.
+
+    replan() orders by priority and due date, so a task missing either is a task
+    the planner has to guess about — triage fills both, plus the estimate it
+    needs to size the block.
+    """
     tasks = list(db.scalars(select(Task).where(Task.assignment == "mine", Task.status == "open")))
     estimate_error = None
     try:
-        estimator.estimate_tasks(db, tasks)
+        triage.triage_tasks(db, tasks)
     except Exception as exc:  # planning still proceeds with whatever estimates exist
         db.rollback()
         estimate_error = str(exc)

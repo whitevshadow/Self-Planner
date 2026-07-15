@@ -1,9 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import MeetingCard from "@/components/MeetingCard";
 import UploadForm from "@/components/UploadForm";
+import RecordButton from "@/components/RecordButton";
 import { listMeetings, type Meeting } from "@/lib/api";
 
 export default function MeetingsPage() {
@@ -40,19 +40,25 @@ export default function MeetingsPage() {
     <>
       <div className="page-header">
         <h1>Meetings</h1>
-        <nav className="nav-links">
-          <Link href="/">My tasks</Link>
-          <Link href="/tasks">All tasks</Link>
-          <Link href="/settings/people">People</Link>
-        </nav>
+        <span className="muted">Upload a recording — tasks are extracted automatically</span>
       </div>
 
+      <RecordButton onUploaded={refresh} />
       <UploadForm onUploaded={refresh} />
 
       {error && <div className="error-banner">Backend unreachable: {error}</div>}
-      {meetings === null && !error && <div className="empty">Loading…</div>}
+      {meetings === null && !error && (
+        <div aria-hidden>
+          <div className="shimmer" />
+          <div className="shimmer" />
+        </div>
+      )}
       {meetings && meetings.length === 0 && (
-        <div className="empty">No meetings yet. Upload a recording above to get started.</div>
+        <div className="empty-state">
+          <div className="icon">🎙️</div>
+          <div className="title">No meetings yet</div>
+          <div className="sub">Record or upload a recording above — transcript, summary, and tasks appear automatically.</div>
+        </div>
       )}
       {meetings && meetings.length > 0 && (
         <div className="meeting-list">

@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import {
   createBusyBlock,
@@ -96,10 +95,7 @@ export default function AvailabilityPage() {
 
   return (
     <>
-      <Link href="/" className="back-link">
-        ← My tasks
-      </Link>
-      <div className="page-header" style={{ marginTop: "0.75rem" }}>
+      <div className="page-header">
         <h1>Availability</h1>
         <span className="muted">The planner only ever schedules inside these windows</span>
       </div>

@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import {
   createPerson,
@@ -70,10 +69,7 @@ export default function PeoplePage() {
 
   return (
     <>
-      <Link href="/" className="back-link">
-        ← My tasks
-      </Link>
-      <div className="page-header" style={{ marginTop: "0.75rem" }}>
+      <div className="page-header">
         <h1>People</h1>
         <span className="muted">Used for speaker mapping and task classification</span>
       </div>

@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     whisper_model: str = "small"
     whisper_device: str = "cpu"
     whisper_compute: str = "int8"
+    # "translate" = always output English; "transcribe" = keep the spoken language
+    whisper_task: str = "translate"
     max_upload_mb: int = 200
     # Gateway/OpenAI-compatible LLM config
     llm_base_url: str = ""
@@ -45,12 +47,15 @@ class Settings(BaseSettings):
     llm_model_summary: str = ""
     llm_model_extract: str = ""
     llm_timeout_sec: int = 120
-    llm_reasoning_effort: str = "none"  # none = reasoning off; "" to omit the param
+    llm_reasoning_effort: str = "none"  # "none" or "" = never send the param (gateway hangs on invalid values); low/medium/high to enable
     llm_model_classify: str = ""
     hf_token: str = ""
     diarization_model: str = "pyannote/speaker-diarization-3.1"
     llm_model_plan: str = ""  # estimation job; falls back to llm_model_extract
     llm_model_chat: str = ""  # chatbot agent; falls back to llm_model_extract
+    # Triage job (priority + duration + start/due date). Reasoning-heavy: date
+    # arithmetic and effort sizing, so it gets the bigger model by default.
+    llm_model_triage: str = "gpt-oss-120b"
     llm_model_vision: str = "meta/llama-3.2-90b-vision-instruct"  # timetable images
     morning_plan_time: str = "08:00"
     timezone: str = "Asia/Kolkata"

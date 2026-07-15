@@ -32,6 +32,10 @@ STATEMENTS = [
     "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS at_risk BOOLEAN NOT NULL DEFAULT false",
     # busy_blocks.date was created NOT NULL by an annotation-shadowing bug
     "ALTER TABLE busy_blocks ALTER COLUMN date DROP NOT NULL",
+    # Batched extraction progress ({"stage", "done", "total"})
+    "ALTER TABLE meetings ADD COLUMN IF NOT EXISTS extract_progress JSONB",
+    # Smart meeting notes (Markdown minutes generated per services/skill.md)
+    "ALTER TABLE meetings ADD COLUMN IF NOT EXISTS notes TEXT",
 ]
 
 

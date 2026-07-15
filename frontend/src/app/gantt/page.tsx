@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { listTasks, type Task } from "@/lib/api";
 import "./gantt.css";
@@ -53,10 +52,7 @@ export default function GanttPage() {
     <>
       <div className="page-header">
         <h1>Gantt</h1>
-        <nav className="nav-links">
-          <Link href="/">My tasks</Link>
-          <Link href="/chat">Chat</Link>
-        </nav>
+        <span className="muted">Open tasks laid out from start date to due date</span>
       </div>
 
       <div className="filters">

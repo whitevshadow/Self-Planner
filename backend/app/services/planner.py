@@ -1,6 +1,6 @@
 """Deterministic planner engine (phase4.md).
 
-The LLM only estimates (estimator.py); this module places blocks with plain
+The LLM only triages (triage.py); this module places blocks with plain
 rules:
 
 1. Order: topological by dependencies, then priority, then due date.

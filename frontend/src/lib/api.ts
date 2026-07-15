@@ -54,8 +54,10 @@ export interface Task {
 export interface MeetingDetail extends Meeting {
   summary: string | null;
   decisions: string[] | null;
+  notes: string | null;
   extract_status: "pending" | "running" | "done" | "failed";
   extract_error: string | null;
+  extract_progress: { stage: "summary" | "extract" | "notes"; done: number; total: number } | null;
   diarize_status: "pending" | "running" | "done" | "failed" | "skipped";
   speaker_map: Record<string, string>;
   segments: Segment[];
@@ -116,19 +118,14 @@ export async function deleteMeeting(id: string): Promise<void> {
   return handle(await fetch(`${API_BASE}/meetings/${id}`, { method: "DELETE" }));
 }
 
+export async function reTranscribe(meetingId: string): Promise<MeetingDetail> {
+  // Returns 202 immediately; the full pipeline re-runs — poll getMeeting for status.
+  return handle(await fetch(`${API_BASE}/meetings/${meetingId}/retranscribe`, { method: "POST" }));
+}
+
 export async function reExtract(meetingId: string): Promise<MeetingDetail> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 5 * 60 * 1000);
-  try {
-    return await handle(
-      await fetch(`${API_BASE}/meetings/${meetingId}/extract`, {
-        method: "POST",
-        signal: controller.signal,
-      })
-    );
-  } finally {
-    clearTimeout(timer);
-  }
+  // Returns 202 immediately; poll getMeeting for extract_status/extract_progress.
+  return handle(await fetch(`${API_BASE}/meetings/${meetingId}/extract`, { method: "POST" }));
 }
 
 export async function listTasks(filters?: {
@@ -142,6 +139,25 @@ export async function listTasks(filters?: {
   if (filters?.assignment) params.set("assignment", filters.assignment);
   const qs = params.toString();
   return handle(await fetch(`${API_BASE}/tasks${qs ? `?${qs}` : ""}`, { cache: "no-store" }));
+}
+
+/** Take ownership of tasks ticked on the meeting page. The server also triages
+ * them (priority, duration, start date, deadline), so this can take a few seconds. */
+export async function assignTasksToMe(taskIds: string[]): Promise<Task[]> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 2 * 60 * 1000);
+  try {
+    return await handle(
+      await fetch(`${API_BASE}/tasks/assign-mine`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ task_ids: taskIds }),
+        signal: controller.signal,
+      })
+    );
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export async function confirmTask(id: string): Promise<Task> {
@@ -395,6 +411,15 @@ export function formatTimestamp(sec: number): string {
   const m = Math.floor(sec / 60);
   const s = Math.floor(sec % 60);
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+/** Task effort estimate as "45m" / "2h" / "1h 30m". */
+export function formatMinutes(min: number | null): string {
+  if (min == null) return "—";
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  if (!h) return `${m}m`;
+  return m ? `${h}h ${m}m` : `${h}h`;
 }
 
 export function formatDuration(sec: number | null): string {

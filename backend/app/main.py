@@ -11,7 +11,7 @@ from .db import Base, SessionLocal, engine
 from .migrations import run_migrations
 from .models import AvailabilityRule, Person
 from .routers import chat, meetings, people, planner, tasks
-from .services import scheduler_jobs, storage
+from .services import pipeline, scheduler_jobs, storage
 
 
 def _seed_me() -> None:
@@ -41,6 +41,8 @@ async def lifespan(app: FastAPI):
     _seed_me()
     _seed_availability()
     storage.ensure_bucket()
+    # A restart kills in-process background stages; release rows they left behind.
+    pipeline.reclaim_orphans()
     scheduler_jobs.start()
     yield
     scheduler_jobs.shutdown()

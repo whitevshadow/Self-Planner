@@ -1,26 +1,24 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import TaskTable from "@/components/TaskTable";
 import { listTasks, type Task } from "@/lib/api";
 
-export default function TasksPage() {
+export default function MyTasksPage() {
   const [tasks, setTasks] = useState<Task[] | null>(null);
-  const [owner, setOwner] = useState("");
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState("open");
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
-      setTasks(
-        await listTasks({ owner: owner.trim() || undefined, status: status || undefined })
-      );
+      // Only what I actually own — tasks belonging to other people live on their
+      // meeting page, and are taken on from there via the checkboxes.
+      setTasks(await listTasks({ assignment: "mine", status: status || undefined }));
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load tasks");
     }
-  }, [owner, status]);
+  }, [status]);
 
   useEffect(() => {
     refresh();
@@ -28,32 +26,28 @@ export default function TasksPage() {
 
   return (
     <>
-      <Link href="/" className="back-link">
-        ← My tasks
-      </Link>
-      <div className="page-header" style={{ marginTop: "0.75rem" }}>
-        <h1>All tasks</h1>
+      <div className="page-header">
+        <h1>My tasks</h1>
         <span className="muted">{tasks ? `${tasks.length} task${tasks.length === 1 ? "" : "s"}` : ""}</span>
       </div>
 
       <div className="filters">
-        <input
-          type="text"
-          placeholder="Filter by owner…"
-          value={owner}
-          onChange={(e) => setOwner(e.target.value)}
-        />
         <select value={status} onChange={(e) => setStatus(e.target.value)}>
-          <option value="">All statuses</option>
           <option value="open">open</option>
           <option value="done">done</option>
           <option value="dropped">dropped</option>
+          <option value="">all statuses</option>
         </select>
       </div>
 
       {error && <div className="error-banner">{error}</div>}
       {tasks === null && !error && <div className="empty">Loading…</div>}
-      {tasks && <TaskTable tasks={tasks} onChanged={refresh} showMeetingLink />}
+      {tasks && tasks.length === 0 && (
+        <div className="empty">
+          Nothing assigned to you yet. Open a meeting and tick the tasks you want to take on.
+        </div>
+      )}
+      {tasks && tasks.length > 0 && <TaskTable tasks={tasks} onChanged={refresh} showMeetingLink />}
     </>
   );
 }

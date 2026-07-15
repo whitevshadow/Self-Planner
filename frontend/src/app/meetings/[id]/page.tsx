@@ -12,8 +12,13 @@ import {
   getMeeting,
   isProcessing,
   reExtract,
+  reTranscribe,
   type MeetingDetail,
 } from "@/lib/api";
+
+// Longest plausible pipeline run (large-v3 on a long recording) before we treat
+// a still-"running" meeting as hung rather than slow.
+const POLL_TIMEOUT_MS = 20 * 60 * 1000;
 
 const STAGE_LABELS: Record<string, string> = {
   transcribing: "Transcribing audio…",
@@ -30,23 +35,39 @@ export default function MeetingPage({ params }: { params: Promise<{ id: string }
   const [error, setError] = useState<string | null>(null);
   const [extracting, setExtracting] = useState(false);
   const [flashIdx, setFlashIdx] = useState<number | null>(null);
+  const [stalled, setStalled] = useState(false);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollingSince = useRef<number | null>(null);
+
+  const stopPolling = useCallback(() => {
+    if (timer.current) clearInterval(timer.current);
+    timer.current = null;
+    pollingSince.current = null;
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
       const m = await getMeeting(id);
       setMeeting(m);
       setError(null);
-      if (isProcessing(m) && !timer.current) {
-        timer.current = setInterval(refresh, 3000);
-      } else if (!isProcessing(m) && timer.current) {
-        clearInterval(timer.current);
-        timer.current = null;
+      if (isProcessing(m)) {
+        pollingSince.current ??= Date.now();
+        // A stage that hangs while the server stays up would otherwise poll
+        // forever. Give up after POLL_TIMEOUT_MS and offer a retry instead.
+        if (Date.now() - pollingSince.current > POLL_TIMEOUT_MS) {
+          stopPolling();
+          setStalled(true);
+        } else if (!timer.current) {
+          timer.current = setInterval(refresh, 3000);
+        }
+      } else {
+        stopPolling();
+        setStalled(false);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load meeting");
     }
-  }, [id]);
+  }, [id, stopPolling]);
 
   useEffect(() => {
     refresh();
@@ -81,12 +102,34 @@ export default function MeetingPage({ params }: { params: Promise<{ id: string }
       return;
     setExtracting(true);
     try {
+      // 202: extraction runs in the background — start polling for progress.
       setMeeting(await reExtract(id));
       setError(null);
+      await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Re-extraction failed");
     } finally {
       setExtracting(false);
+    }
+  }
+
+  async function handleReTranscribe() {
+    if (
+      !confirm(
+        "Re-transcribe the audio and re-run the whole pipeline (speakers, summary, tasks)? " +
+          "The transcript and speaker labels will be replaced; your task edits and inbox decisions are preserved."
+      )
+    )
+      return;
+    try {
+      // 202: the full pipeline runs in the background — polling takes over.
+      setStalled(false);
+      pollingSince.current = null;
+      setMeeting(await reTranscribe(id));
+      setError(null);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Re-transcription failed");
     }
   }
 
@@ -118,17 +161,49 @@ export default function MeetingPage({ params }: { params: Promise<{ id: string }
         {meeting.diarize_status === "failed" && " · diarization failed"}
       </div>
 
-      {stage && (
+      {stalled && (
+        <div className="error-banner">
+          This meeting has been stuck on “{stage ? STAGE_LABELS[stage] : "processing"}” for over 20
+          minutes, so it&apos;s probably not coming back — the server may have restarted mid-run.{" "}
+          <button onClick={handleReTranscribe}>Re-transcribe</button>
+        </div>
+      )}
+
+      {stage && !stalled && (
         <div className="summary-card">
           <div className="upload-status">
             <span className="spinner" />
             {STAGE_LABELS[stage]}
           </div>
+          {stage === "extracting" && meeting.extract_progress && meeting.extract_progress.total > 0 && (
+            <div className="progress-row">
+              <div className="progress-track">
+                <div
+                  className="progress-fill"
+                  style={{
+                    width: `${Math.round((meeting.extract_progress.done / meeting.extract_progress.total) * 100)}%`,
+                  }}
+                />
+              </div>
+              <span className="muted">
+                {meeting.extract_progress.stage === "summary"
+                  ? "Summarizing"
+                  : meeting.extract_progress.stage === "extract"
+                    ? "Extracting tasks"
+                    : "Writing meeting notes"}{" "}
+                — batch {Math.min(meeting.extract_progress.done + 1, meeting.extract_progress.total)} of{" "}
+                {meeting.extract_progress.total}
+              </span>
+            </div>
+          )}
         </div>
       )}
 
       {meeting.status === "failed" && (
-        <div className="error-banner">Transcription failed: {meeting.error ?? "unknown error"}</div>
+        <div className="error-banner">
+          Transcription failed: {meeting.error ?? "unknown error"}{" "}
+          <button onClick={handleReTranscribe}>Retry</button>
+        </div>
       )}
 
       {meeting.status === "done" && (
@@ -159,10 +234,18 @@ export default function MeetingPage({ params }: { params: Promise<{ id: string }
                 <button onClick={handleReExtract} disabled={extracting}>
                   {extracting ? "Extracting…" : "Re-extract"}
                 </button>
+                <button onClick={handleReTranscribe} disabled={extracting} title="Re-run transcription, speaker detection, summary and tasks from the original audio">
+                  Re-transcribe
+                </button>
               </div>
+              <p className="muted">
+                Tick any task to take it on yourself — it gets a priority, a duration and a deadline,
+                and shows up under My Tasks.
+              </p>
               <TaskTable
                 tasks={meeting.tasks}
                 onChanged={refresh}
+                selectable
                 onRowClick={(t) => t.segment_idx != null && setFlashIdx(t.segment_idx)}
               />
             </>

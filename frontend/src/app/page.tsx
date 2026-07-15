@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import MiniCalendar from "@/components/MiniCalendar";
 import TodayColumn from "@/components/TodayColumn";
 import {
   confirmTask,
@@ -10,6 +11,7 @@ import {
   updateTask,
   type Task,
 } from "@/lib/api";
+import { formatDue } from "@/lib/dates";
 
 export default function MyTasksPage() {
   const [mine, setMine] = useState<Task[] | null>(null);
@@ -47,19 +49,65 @@ export default function MyTasksPage() {
   const today = new Date().toISOString().slice(0, 10);
   const open = (mine ?? []).filter((t) => t.status === "open");
   const done = (mine ?? []).filter((t) => t.status !== "open");
+  const highPriority = open.filter(
+    (t) => t.priority === "high" || (t.due_date != null && t.due_date < today)
+  );
+  const rest = open.filter((t) => !highPriority.includes(t));
+  const dueDates = new Set(
+    open.flatMap((t) => (t.due_date ? [t.due_date.slice(0, 10)] : []))
+  );
+
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  const dateLine = new Date().toLocaleDateString(undefined, {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
+
+  const taskRow = (t: Task) => (
+    <div className={`mytask ${t.due_date && t.due_date < today ? "overdue" : ""}`} key={t.id}>
+      <input type="checkbox" checked={false} onChange={() => toggleDone(t)} title="Mark done" />
+      <div className="mytask-info">
+        <div className="title">
+          {t.title}
+          {t.priority && <span className={`prio ${t.priority}`}>{t.priority}</span>}
+        </div>
+        <div className="meta">
+          {t.due_date ? (
+            (() => {
+              const d = formatDue(t.due_date);
+              return <span className={d.overdue ? "overdue-text" : ""}>{d.label}</span>;
+            })()
+          ) : (
+            "no deadline"
+          )}
+          {t.assignment_reason && (
+            <span className="why-hint" title={t.assignment_reason}>
+              {" "}· why me?
+            </span>
+          )}
+        </div>
+      </div>
+      <Link href={`/meetings/${t.meeting_id}?task=${t.id}`} className="meeting-link">
+        open meeting →
+      </Link>
+    </div>
+  );
 
   return (
     <>
-      <div className="page-header">
-        <h1>My Tasks</h1>
-        <nav className="nav-links">
-          <Link href="/meetings">Meetings</Link>
-          <Link href="/tasks">All tasks</Link>
-          <Link href="/chat">Chat</Link>
-          <Link href="/gantt">Gantt</Link>
-          <Link href="/settings/people">People</Link>
-          <Link href="/settings/availability">Availability</Link>
-        </nav>
+      <div className="hello-hero">
+        <h1>{greeting}, Anish 👋</h1>
+        <div className="hello-sub">
+          {dateLine}
+          {mine !== null &&
+            ` · ${open.length} open task${open.length === 1 ? "" : "s"}${
+              highPriority.length > 0
+                ? `, ${highPriority.length} need${highPriority.length === 1 ? "s" : ""} attention`
+                : ""
+            }`}
+        </div>
       </div>
 
       {error && <div className="error-banner">Backend unreachable: {error}</div>}
@@ -83,7 +131,7 @@ export default function MyTasksPage() {
                   Not mine
                 </button>
                 <Link href={`/meetings/${t.meeting_id}?task=${t.id}`} className="meeting-link">
-                  context →
+                  see context →
                 </Link>
               </div>
             </div>
@@ -93,62 +141,57 @@ export default function MyTasksPage() {
 
       <div className="dash-grid">
         <div>
-      <h2 className="list-title">Open ({open.length})</h2>
-      {mine === null && !error && <div className="empty">Loading…</div>}
-      {mine !== null && open.length === 0 && (
-        <div className="empty">
-          No open tasks assigned to you. Upload a meeting on the{" "}
-          <Link href="/meetings" style={{ textDecoration: "underline" }}>
-            Meetings page
-          </Link>
-          .
-        </div>
-      )}
-      <div className="mytask-list">
-        {open.map((t) => (
-          <div className={`mytask ${t.due_date && t.due_date < today ? "overdue" : ""}`} key={t.id}>
-            <input type="checkbox" checked={false} onChange={() => toggleDone(t)} title="Mark done" />
-            <div className="mytask-info">
-              <div className="title">
-                {t.title}
-                {t.priority && <span className={`prio ${t.priority}`}>{t.priority}</span>}
-              </div>
-              <div className="meta">
-                {t.due_date ? (
-                  <span className={t.due_date < today ? "overdue-text" : ""}>
-                    due {t.due_date}
-                    {t.due_date < today ? " — overdue" : ""}
-                  </span>
-                ) : (
-                  "no deadline"
-                )}
-                {t.assignment_reason && <span title={t.assignment_reason}> · why?</span>}
-              </div>
+          {highPriority.length > 0 && (
+            <div className="hp-section">
+              <h2>
+                <span className="hp-flame">⚑</span> High priority ({highPriority.length})
+              </h2>
+              <div className="mytask-list">{highPriority.map(taskRow)}</div>
             </div>
-            <Link href={`/meetings/${t.meeting_id}?task=${t.id}`} className="meeting-link">
-              meeting →
-            </Link>
-          </div>
-        ))}
-      </div>
+          )}
 
-      {done.length > 0 && (
-        <>
-          <h2 className="list-title muted">Done / dropped ({done.length})</h2>
-          <div className="mytask-list dim">
-            {done.map((t) => (
-              <div className="mytask" key={t.id}>
-                <input type="checkbox" checked onChange={() => toggleDone(t)} title="Reopen" />
-                <div className="mytask-info">
-                  <div className="title strike">{t.title}</div>
-                </div>
+          <h2 className="list-title">
+            {highPriority.length > 0 ? `Everything else (${rest.length})` : `Open (${open.length})`}
+          </h2>
+          {mine === null && !error && (
+            <div aria-hidden>
+              <div className="shimmer" />
+              <div className="shimmer" />
+              <div className="shimmer" />
+            </div>
+          )}
+          {mine !== null && open.length === 0 && (
+            <div className="empty-state">
+              <div className="icon">✨</div>
+              <div className="title">All clear</div>
+              <div className="sub">Record or upload a meeting and tasks will land here on their own.</div>
+              <Link href="/meetings">
+                <button>Record a meeting</button>
+              </Link>
+            </div>
+          )}
+          <div className="mytask-list">{rest.map(taskRow)}</div>
+
+          {done.length > 0 && (
+            <>
+              <h2 className="list-title muted">Done / dropped ({done.length})</h2>
+              <div className="mytask-list dim">
+                {done.map((t) => (
+                  <div className="mytask" key={t.id}>
+                    <input type="checkbox" checked onChange={() => toggleDone(t)} title="Reopen" />
+                    <div className="mytask-info">
+                      <div className="title strike">{t.title}</div>
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        </>
-      )}
+            </>
+          )}
         </div>
-        <TodayColumn />
+        <div>
+          <MiniCalendar dueDates={dueDates} />
+          <TodayColumn />
+        </div>
       </div>
     </>
   );

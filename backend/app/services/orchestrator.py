@@ -5,10 +5,12 @@ and Pydantic-validated by the caller; on failure the call is retried once
 with the validation error appended.
 """
 import json
+import logging
 import re
+import time
 from typing import Type, TypeVar
 
-from openai import OpenAI
+from openai import APIConnectionError, APITimeoutError, OpenAI, RateLimitError
 from pydantic import BaseModel, ValidationError
 
 from ..config import settings
@@ -16,7 +18,35 @@ from .model_discovery import ensure_env_models_written, list_model_ids, pick_mod
 
 T = TypeVar("T", bound=BaseModel)
 
+logger = logging.getLogger(__name__)
+
+# Gateway timeouts/disconnects are transient more often than not — retry with
+# exponential backoff before surfacing the failure to the pipeline.
+_TRANSIENT_ERRORS = (APITimeoutError, APIConnectionError, RateLimitError)
+_MAX_TRANSIENT_RETRIES = 3
+_BACKOFF_BASE_SEC = 2.0
+
 _client: OpenAI | None = None
+
+
+def _create_with_retry(client: OpenAI, job: str, **kwargs):
+    last_exc: Exception | None = None
+    for attempt in range(_MAX_TRANSIENT_RETRIES + 1):
+        try:
+            return client.chat.completions.create(**kwargs)
+        except _TRANSIENT_ERRORS as exc:
+            last_exc = exc
+            if attempt < _MAX_TRANSIENT_RETRIES:
+                delay = _BACKOFF_BASE_SEC * (2**attempt)  # 2s, 4s, 8s
+                logger.warning(
+                    "LLM job '%s' transient error (attempt %d/%d), retrying in %.0fs: %s",
+                    job, attempt + 1, _MAX_TRANSIENT_RETRIES + 1, delay, exc,
+                )
+                time.sleep(delay)
+    raise RuntimeError(
+        f"LLM gateway did not respond after {_MAX_TRANSIENT_RETRIES + 1} attempts "
+        f"({type(last_exc).__name__}: {last_exc}). Check the gateway or raise LLM_TIMEOUT_SEC."
+    ) from last_exc
 
 
 def _get_client() -> OpenAI:
@@ -36,10 +66,12 @@ def _get_client() -> OpenAI:
 def _model_for_job(job: str) -> str:
     model = {
         "summary": settings.llm_model_summary,
+        "minutes": settings.llm_model_summary,  # same routing as summary
         "extract": settings.llm_model_extract,
         "classify": settings.llm_model_classify,
         "plan": settings.llm_model_plan or settings.llm_model_extract,
         "chat": settings.llm_model_chat or settings.llm_model_extract,
+        "triage": settings.llm_model_triage or settings.llm_model_extract,
     }.get(job, "")
 
     if model:
@@ -63,13 +95,18 @@ def _model_for_job(job: str) -> str:
 
 
 def _max_tokens_for_job(job: str) -> int:
+    # Budgets sized for reasoning models (gpt-oss): hidden reasoning tokens count
+    # against max_tokens (measured ~1300 per extract call), so visible JSON gets
+    # truncated if the cap is tight. run_json_job doubles the cap once on truncation.
     return {
-        "summary": 700,
-        "extract": 1800,
-        "classify": 1200,
-        "plan": 1200,
-        "chat": 1500,
-    }.get(job, 1200)
+        "summary": 3000,
+        "minutes": 6000,  # a full Markdown minutes document
+        "extract": 6000,
+        "classify": 4000,
+        "plan": 4000,
+        "chat": 4000,
+        "triage": 6000,  # one object per task, and 120b reasons before answering
+    }.get(job, 4000)
 
 
 def _extract_json(raw: str) -> dict:
@@ -95,23 +132,36 @@ def run_json_job(job: str, system: str, user: str, schema: Type[T]) -> T:
     ]  # type: ignore[var-annotated]
 
     extra_body = {}
-    # Only reasoning-capable models (gpt-oss family) take the param; other routes
-    # on the gateway stall or 502 when they receive it.
-    if settings.llm_reasoning_effort and "gpt-oss" in model:
+    # Only reasoning-capable models (gpt-oss family) take the param, and only with
+    # valid values (low/medium/high) — the gateway HANGS (0 bytes until timeout)
+    # on reasoning_effort="none", and other routes stall or 502 on the param at all.
+    if settings.llm_reasoning_effort not in ("", "none") and "gpt-oss" in model:
         extra_body["reasoning_effort"] = settings.llm_reasoning_effort
         # LiteLLM proxies reject non-standard params for some providers unless whitelisted.
         extra_body["allowed_openai_params"] = ["reasoning_effort"]
 
     last_error: Exception | None = None
+    max_tokens = _max_tokens_for_job(job)
     for attempt in range(2):
-        resp = client.chat.completions.create(
+        resp = _create_with_retry(
+            client,
+            job,
             model=model,
             messages=messages,
             temperature=0.2,
-            max_tokens=_max_tokens_for_job(job),
+            max_tokens=max_tokens,
             extra_body=extra_body,
         )
-        raw = resp.choices[0].message.content or ""
+        choice = resp.choices[0]
+        raw = choice.message.content or ""
+        if choice.finish_reason == "length":
+            # Truncated mid-JSON — parsing is pointless; retry with more room.
+            last_error = ValueError(
+                f"output truncated at max_tokens={max_tokens} "
+                "(reasoning models spend part of the budget on hidden reasoning)"
+            )
+            max_tokens *= 2
+            continue
         try:
             return schema.model_validate(_extract_json(raw))
         except (json.JSONDecodeError, ValidationError, ValueError) as exc:

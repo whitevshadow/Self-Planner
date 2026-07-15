@@ -79,39 +79,39 @@ export default function TodayColumn() {
       <div className="block-list">
         {blocks?.map((b) => (
           <div className={`block ${b.status} ${b.at_risk ? "risk" : ""}`} key={b.id}>
-            <span className="block-time">
-              {formatTimeHM(b.start_at)}–{formatTimeHM(b.end_at)}
-            </span>
-            <div className="block-info">
-              <div className="title">
-                {b.task_title}
-                {b.pinned && <span title="Pinned — replans won't move it"> 📌</span>}
-                {b.at_risk && <span className="prio high" style={{ marginLeft: "0.4rem" }}>at risk</span>}
-              </div>
-              <div className="meta">
+            <div className="block-title" title={b.task_title}>
+              {b.task_title}
+              {b.pinned && <span title="Pinned — replans won't move it"> 📌</span>}
+              {b.at_risk && <span className="prio high" style={{ marginLeft: "0.4rem" }}>at risk</span>}
+            </div>
+            <div className="block-foot">
+              <span className="block-time">
+                {formatTimeHM(b.start_at)}–{formatTimeHM(b.end_at)}
+              </span>
+              <span className="block-meta">
                 {b.category}
                 {b.priority ? ` · ${b.priority}` : ""}
+              </span>
+              <div className="block-actions">
+                {b.status === "planned" && (
+                  <button className="mini" onClick={() => setStatus(b, "in_progress")}>
+                    Start
+                  </button>
+                )}
+                {b.status === "in_progress" && (
+                  <button className="mini" onClick={() => setStatus(b, "done")}>
+                    Done
+                  </button>
+                )}
+                {(b.status === "planned" || b.status === "in_progress") && (
+                  <button className="mini ghost" onClick={() => setStatus(b, "skipped")}>
+                    Skip
+                  </button>
+                )}
+                {(b.status === "done" || b.status === "skipped") && (
+                  <span className="muted">{b.status}</span>
+                )}
               </div>
-            </div>
-            <div className="block-actions">
-              {b.status === "planned" && (
-                <button className="mini" onClick={() => setStatus(b, "in_progress")}>
-                  Start
-                </button>
-              )}
-              {b.status === "in_progress" && (
-                <button className="mini" onClick={() => setStatus(b, "done")}>
-                  Done
-                </button>
-              )}
-              {(b.status === "planned" || b.status === "in_progress") && (
-                <button className="mini ghost" onClick={() => setStatus(b, "skipped")}>
-                  Skip
-                </button>
-              )}
-              {(b.status === "done" || b.status === "skipped") && (
-                <span className="muted">{b.status}</span>
-              )}
             </div>
           </div>
         ))}

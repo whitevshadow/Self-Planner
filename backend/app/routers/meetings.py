@@ -9,12 +9,12 @@ from ..config import settings
 from ..db import get_db
 from ..models import Meeting, Person, Task
 from ..schemas import MeetingDetail, MeetingListItem, TaskOut
-from ..services import classifier, extraction, pipeline, storage
+from ..services import classifier, pipeline, storage
 
 router = APIRouter(prefix="/api/meetings", tags=["meetings"])
 
-ALLOWED_EXTENSIONS = {".mp3", ".wav", ".m4a"}
-CONTENT_TYPES = {".mp3": "audio/mpeg", ".wav": "audio/wav", ".m4a": "audio/mp4"}
+ALLOWED_EXTENSIONS = {".mp3", ".wav", ".m4a", ".webm", ".ogg"}
+CONTENT_TYPES = {".mp3": "audio/mpeg", ".wav": "audio/wav", ".m4a": "audio/mp4", ".webm": "audio/webm", ".ogg": "audio/ogg"}
 
 
 @router.post("", response_model=MeetingDetail, status_code=202)
@@ -57,24 +57,41 @@ def upload_meeting(
     return _get_meeting_or_404(db, meeting_id)
 
 
-@router.post("/{meeting_id}/extract", response_model=MeetingDetail)
-def re_extract(meeting_id: uuid.UUID, db: Session = Depends(get_db)):
+@router.post("/{meeting_id}/retranscribe", response_model=MeetingDetail, status_code=202)
+def re_transcribe(meeting_id: uuid.UUID, background: BackgroundTasks, db: Session = Depends(get_db)):
+    """Full re-run from the stored audio: transcribe → diarize → extract →
+    classify. Returns 202 immediately; the UI polls GET /meetings/{id}.
+    Task reconciliation preserves edited tasks as usual."""
+    meeting = _get_meeting_or_404(db, meeting_id)
+    if meeting.status in ("uploaded", "transcribing") or meeting.extract_status == "running":
+        raise HTTPException(409, "Meeting is already being processed")
+    meeting.status = "transcribing"
+    meeting.error = None
+    meeting.diarize_status = "pending"
+    meeting.extract_status = "pending"
+    meeting.extract_error = None
+    meeting.extract_progress = None
+    db.commit()
+    background.add_task(pipeline.process_meeting, meeting_id)
+    return _get_meeting_or_404(db, meeting_id)
+
+
+@router.post("/{meeting_id}/extract", response_model=MeetingDetail, status_code=202)
+def re_extract(meeting_id: uuid.UUID, background: BackgroundTasks, db: Session = Depends(get_db)):
+    """Returns 202 immediately; batched extraction + classification run in the
+    background. The UI polls GET /meetings/{id} for extract_status/progress."""
     meeting = _get_meeting_or_404(db, meeting_id)
     if meeting.status != "done":
         raise HTTPException(409, "Meeting has no completed transcript to extract from")
     # Row-level guard: a concurrent extract becomes a no-op instead of a double run.
     if meeting.extract_status == "running":
         raise HTTPException(409, "Extraction already running")
-    try:
-        extraction.run_extraction(db, meeting)
-        if meeting.extract_status == "done":
-            classifier.run_classification(db, meeting)
-            db.commit()
-    except Exception as exc:
-        db.rollback()
-        meeting.extract_status = "failed"
-        meeting.extract_error = str(exc)[:2000]
-        db.commit()
+    # Mark running before returning so the guard holds and the UI polls right away.
+    meeting.extract_status = "running"
+    meeting.extract_error = None
+    meeting.extract_progress = None
+    db.commit()
+    background.add_task(pipeline.extract_meeting, meeting_id)
     return _get_meeting_or_404(db, meeting_id)
 
 

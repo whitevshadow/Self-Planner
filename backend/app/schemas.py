@@ -61,6 +61,7 @@ class TaskUpdate(BaseModel):
     title: str | None = None
     owner: str | None = None
     due_date: date | None = None
+    start_date: date | None = None
     priority: Literal["high", "medium", "low"] | None = None
     status: Literal["open", "done", "dropped"] | None = None
     category: Literal["work", "personal"] | None = None
@@ -72,8 +73,10 @@ class TaskUpdate(BaseModel):
 class MeetingDetail(MeetingListItem):
     summary: str | None = None
     decisions: list[str] | None = None
+    notes: str | None = None
     extract_status: str = "pending"
     extract_error: str | None = None
+    extract_progress: dict | None = None
     diarize_status: str = "pending"
     speaker_map: dict[str, str] = {}
     segments: list[SegmentOut] = []
@@ -85,6 +88,10 @@ class MeetingDetail(MeetingListItem):
 class SummaryResult(BaseModel):
     summary: str = Field(min_length=1)
     decisions: list[str] = []
+
+
+class MinutesResult(BaseModel):
+    notes: str = Field(min_length=1)  # full minutes as Markdown
 
 
 _NULLISH_OWNERS = {"", "null", "none", "unknown", "unclear", "unassigned", "tbd", "someone", "team", "we", "everyone", "anyone"}
@@ -162,14 +169,29 @@ class PersonIn(BaseModel):
 
 # --- Phase 4: planning ---
 
-class TaskEstimate(BaseModel):
+class TaskTriage(BaseModel):
+    """Triage job output: what a task is worth, how long it takes, and when it runs."""
+
     task_id: str
+    priority: Literal["high", "medium", "low"]
     estimated_minutes: int = Field(ge=5, le=960)
     steps: list[str] = []
+    start_date: date | None = None
+    due_date: date | None = None
+
+    @field_validator("priority", mode="before")
+    @classmethod
+    def _normalize_priority(cls, v):
+        v = str(v or "").strip().lower()
+        return v if v in ("high", "medium", "low") else "medium"
 
 
-class EstimateResult(BaseModel):
-    estimates: list[TaskEstimate] = []
+class TriageResult(BaseModel):
+    triages: list[TaskTriage] = []
+
+
+class AssignMineIn(BaseModel):
+    task_ids: list[uuid.UUID] = Field(min_length=1)
 
 
 class AvailabilityRuleOut(BaseModel):

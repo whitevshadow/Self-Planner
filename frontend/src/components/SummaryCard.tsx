@@ -1,4 +1,5 @@
 import type { MeetingDetail } from "@/lib/api";
+import MeetingNotes from "./MeetingNotes";
 
 export default function SummaryCard({ meeting }: { meeting: MeetingDetail }) {
   if (meeting.extract_status === "running" || meeting.extract_status === "pending") {
@@ -28,6 +29,12 @@ export default function SummaryCard({ meeting }: { meeting: MeetingDetail }) {
             ))}
           </ul>
         </>
+      )}
+      {meeting.notes && (
+        <details className="notes-details" open>
+          <summary>Full meeting notes</summary>
+          <MeetingNotes notes={meeting.notes} />
+        </details>
       )}
     </div>
   );

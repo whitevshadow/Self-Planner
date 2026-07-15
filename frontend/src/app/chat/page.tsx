@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   confirmTimetable,
@@ -105,10 +104,7 @@ export default function ChatPage() {
     <>
       <div className="page-header">
         <h1>Chat</h1>
-        <nav className="nav-links">
-          <Link href="/">My tasks</Link>
-          <Link href="/gantt">Gantt</Link>
-        </nav>
+        <span className="muted">Add tasks, ask about your schedule, or upload a timetable</span>
       </div>
 
       <div className="chat-box">

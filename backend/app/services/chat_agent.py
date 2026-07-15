@@ -109,19 +109,29 @@ def handle_message(db: Session, user_text: str) -> list[ChatMessage]:
     model = orchestrator._model_for_job("chat")
 
     tools_ran = False
+    # gpt-oss hidden reasoning counts against max_tokens (see orchestrator
+    # budgets) — a tight cap yields empty content with finish_reason="length".
+    max_tokens = orchestrator._max_tokens_for_job("chat")
     for _ in range(MAX_TOOL_ROUNDS):
-        try:
-            resp = client.chat.completions.create(
-                model=model, messages=messages, temperature=0.2, max_tokens=800
-            )
-        except Exception as exc:
-            # If tools already executed, surface partial success instead of an
-            # error — a retried request must not re-run the same actions.
-            if tools_ran:
-                save("assistant", "I applied the actions above, but lost the connection while wrapping up. Ask me to continue if something is missing.")
-                return new_messages
-            raise exc
-        raw = resp.choices[0].message.content or ""
+        raw = ""
+        for _attempt in range(2):
+            try:
+                resp = client.chat.completions.create(
+                    model=model, messages=messages, temperature=0.2, max_tokens=max_tokens
+                )
+            except Exception as exc:
+                # If tools already executed, surface partial success instead of an
+                # error — a retried request must not re-run the same actions.
+                if tools_ran:
+                    save("assistant", "I applied the actions above, but lost the connection while wrapping up. Ask me to continue if something is missing.")
+                    return new_messages
+                raise exc
+            choice = resp.choices[0]
+            raw = choice.message.content or ""
+            if choice.finish_reason == "length":
+                max_tokens *= 2
+                continue
+            break
         try:
             action = orchestrator._extract_json(raw)
         except Exception:
