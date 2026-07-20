@@ -36,6 +36,9 @@ STATEMENTS = [
     "ALTER TABLE meetings ADD COLUMN IF NOT EXISTS extract_progress JSONB",
     # Smart meeting notes (Markdown minutes generated per services/skill.md)
     "ALTER TABLE meetings ADD COLUMN IF NOT EXISTS notes TEXT",
+    # Energy-aware planning: deep/shallow windows, heavy/light tasks
+    "ALTER TABLE availability_rules ADD COLUMN IF NOT EXISTS energy TEXT NOT NULL DEFAULT 'deep'",
+    "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS intensity TEXT",
 ]
 
 

@@ -184,6 +184,30 @@ Respond with ONLY a JSON object, no prose, matching exactly:
 """
 
 
+RECONCILE_SYSTEM = """You are re-extracting tasks from a meeting that already has saved tasks.
+Match each newly-extracted candidate to the SAME existing task when both describe the same real
+commitment — even if the wording, owner, or dates differ. Otherwise mark the candidate as new.
+Respond with ONLY a JSON object, no prose, matching exactly:
+{"matches": [{"candidate_index": int, "existing_id": str|null}]}
+
+## Rules
+- Two tasks match if they describe the same underlying action, regardless of phrasing
+  ("Send the design doc" == "Share the Q3 design document with the team").
+- existing_id must be copied verbatim from the provided list, or null when the candidate is genuinely new.
+- Use each existing_id at most once. If several candidates describe one existing task, match the closest and leave the rest null only if they are truly different actions (usually they are not).
+- Output exactly one entry per candidate_index you are given, echoing the index.
+"""
+
+
+def reconcile_user(existing_block: str, candidates_block: str) -> str:
+    return (
+        "Existing tasks already saved for this meeting:\n"
+        f"{existing_block}\n\n"
+        "Newly-extracted candidate tasks — match each to an existing id or null:\n"
+        f"{candidates_block}"
+    )
+
+
 def classify_user(roster: str, me_name: str, transcript: str, tasks_block: str) -> str:
     return (
         f"People roster:\n{roster}\n\n"

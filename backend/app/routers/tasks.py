@@ -99,6 +99,13 @@ def update_task(task_id: uuid.UUID, patch: TaskUpdate, db: Session = Depends(get
     task.edited = True  # user edits survive re-extraction
     if "estimated_minutes" in fields:
         task.estimate_source = "user"  # never re-estimated
+    # A completed/dropped task should vanish from the plan — drop its not-yet-done
+    # blocks (keep done/skipped ones as history). Otherwise they linger, and since
+    # replan only revisits open 'mine' tasks, nothing would ever clear them.
+    if fields.get("status") in ("done", "dropped"):
+        for b in list(task.blocks):
+            if b.status in ("planned", "in_progress"):
+                db.delete(b)
     db.commit()
     return task
 

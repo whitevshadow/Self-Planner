@@ -152,6 +152,7 @@ export default function TaskTable({
               <th>Start</th>
               <th>Due</th>
               <th>Est.</th>
+              <th title="Heavy tasks are scheduled into your deep-focus windows first">Focus</th>
               <th>Priority</th>
               <th>Status</th>
               {showMeetingLink && <th>Meeting</th>}
@@ -214,6 +215,20 @@ export default function TaskTable({
                 </td>
                 <td className="est-cell" title={t.estimate_source === "user" ? "Your estimate" : "Estimated by the planner"}>
                   {formatMinutes(t.estimated_minutes)}
+                </td>
+                <td>
+                  <select
+                    className="cell-input"
+                    value={t.intensity ?? ""}
+                    title={t.intensity ? "Set by you" : "Auto — from priority & duration"}
+                    onChange={(e) =>
+                      patch(t.id, { intensity: (e.target.value || null) as Task["intensity"] })
+                    }
+                  >
+                    <option value="">auto</option>
+                    <option value="heavy">heavy</option>
+                    <option value="light">light</option>
+                  </select>
                 </td>
                 <td>
                   <select

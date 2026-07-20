@@ -1,10 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import NowCard from "@/components/NowCard";
 import {
   formatTimeHM,
   patchBlock,
   planToday,
+  replanToday,
   runPlan,
   type DayBlock,
   type PlanWarning,
@@ -13,8 +15,9 @@ import {
 export default function TodayColumn() {
   const [blocks, setBlocks] = useState<DayBlock[] | null>(null);
   const [warnings, setWarnings] = useState<PlanWarning[]>([]);
-  const [planning, setPlanning] = useState(false);
+  const [planning, setPlanning] = useState<null | "full" | "today">(null);
   const [error, setError] = useState<string | null>(null);
+  const [nowVersion, setNowVersion] = useState(0);
 
   const refresh = useCallback(async () => {
     try {
@@ -29,22 +32,24 @@ export default function TodayColumn() {
     refresh();
   }, [refresh]);
 
-  async function plan() {
-    setPlanning(true);
+  async function plan(mode: "full" | "today") {
+    setPlanning(mode);
     setError(null);
     try {
-      const r = await runPlan();
+      const r = mode === "full" ? await runPlan() : await replanToday();
       setBlocks(r.today);
       setWarnings(r.warnings);
+      setNowVersion((v) => v + 1);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Planning failed");
     } finally {
-      setPlanning(false);
+      setPlanning(null);
     }
   }
 
   async function setStatus(b: DayBlock, status: DayBlock["status"]) {
     await patchBlock(b.id, { status });
+    setNowVersion((v) => v + 1);
     refresh();
   }
 
@@ -52,10 +57,23 @@ export default function TodayColumn() {
     <div className="today-col">
       <div className="section-header" style={{ margin: "0 0 0.6rem" }}>
         <h2>Today</h2>
-        <button onClick={plan} disabled={planning}>
-          {planning ? "Planning…" : "Replan"}
-        </button>
+        <div className="today-actions">
+          <button className="ghost" onClick={() => plan("today")} disabled={planning !== null}>
+            {planning === "today" ? "Replanning…" : "Replan today"}
+          </button>
+          <button onClick={() => plan("full")} disabled={planning !== null}>
+            {planning === "full" ? "Planning…" : "Full replan"}
+          </button>
+        </div>
       </div>
+
+      <NowCard
+        version={nowVersion}
+        onChanged={() => {
+          setNowVersion((v) => v + 1);
+          refresh();
+        }}
+      />
 
       {error && <div className="error-banner">{error}</div>}
 

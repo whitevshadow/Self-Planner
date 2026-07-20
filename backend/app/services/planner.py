@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from ..config import settings
@@ -44,6 +44,21 @@ def replan(db: Session, now: datetime | None = None) -> list[PlanWarning]:
     """Rebuild the schedule for open 'mine' tasks. One transaction."""
     now = (now or datetime.now(tz())).astimezone(tz())
     warnings: list[PlanWarning] = []
+
+    # Self-heal orphans: blocks whose task was completed, dropped, or handed off
+    # after they were scheduled. replan only rebuilds open 'mine' tasks, so these
+    # would otherwise linger in the plan forever (keep done/skipped ones as history).
+    orphans = db.scalars(
+        select(ScheduleBlock)
+        .join(Task)
+        .where(
+            ScheduleBlock.status == "planned",
+            ScheduleBlock.pinned.is_(False),
+            or_(Task.status != "open", Task.assignment != "mine"),
+        )
+    ).all()
+    for b in orphans:
+        db.delete(b)
 
     tasks = list(
         db.scalars(
@@ -86,9 +101,10 @@ def replan(db: Session, now: datetime | None = None) -> list[PlanWarning]:
     deep_used: dict[tuple[date, str], int] = {}  # (day, category) -> minutes placed
 
     for task, remaining in ordered:
+        prefer_energy = _effective_energy(task)
         placed: list[tuple[datetime, datetime]] = []
         while remaining > 0:
-            slot_i = _find_slot(slots, task.category, remaining, deep_used)
+            slot_i = _find_slot(slots, task.category, remaining, deep_used, prefer_energy)
             if slot_i is None:
                 break
             s = slots[slot_i]
@@ -177,11 +193,25 @@ def _order_tasks(todo: list[tuple[Task, int]]) -> list[tuple[Task, int]]:
     return ordered
 
 
+def _effective_energy(task: Task) -> str:
+    """Which window a task prefers: deep for heavy work, shallow for light.
+
+    Explicit task.intensity wins; otherwise auto — high-priority or long tasks
+    (>= 1h) count as heavy so they land in sharp hours by default.
+    """
+    intensity = task.intensity
+    if intensity is None:
+        heavy = task.priority == "high" or (task.estimated_minutes or 0) >= 60
+        intensity = "heavy" if heavy else "light"
+    return "deep" if intensity == "heavy" else "shallow"
+
+
 class _Slot:
-    def __init__(self, start: datetime, end: datetime, category: str):
+    def __init__(self, start: datetime, end: datetime, category: str, energy: str = "deep"):
         self.start = start
         self.end = end
         self.category = category
+        self.energy = energy
         self.skip_categories: set[str] = set()
 
     @property
@@ -223,24 +253,48 @@ def _free_slots(db: Session, now: datetime, kept_blocks: list[ScheduleBlock]) ->
                 windows = _subtract(windows, kb.start_at - pad, kb.end_at + pad)
             for w_start, w_end in windows:
                 if (w_end - w_start) >= timedelta(minutes=settings.plan_min_block_min):
-                    slots.append(_Slot(w_start, w_end, rule.category))
+                    slots.append(_Slot(w_start, w_end, rule.category, rule.energy))
 
     slots.sort(key=lambda s: s.start)
     return slots
 
 
-def _find_slot(slots: list[_Slot], category: str, remaining: int, deep_used: dict) -> int | None:
-    """Earliest slot of the matching category with usable room and day budget left."""
+def _slot_usable(s: _Slot, category: str, remaining: int, deep_used: dict) -> bool:
+    if s.category != category or category in s.skip_categories:
+        return False
+    if s.minutes < min(settings.plan_min_block_min, remaining):
+        return False
+    if deep_used.get((s.start.date(), category), 0) >= settings.plan_deep_work_min_per_day:
+        return False
+    return True
+
+
+def _find_slot(
+    slots: list[_Slot],
+    category: str,
+    remaining: int,
+    deep_used: dict,
+    prefer_energy: str | None = None,
+) -> int | None:
+    """Earliest usable slot of the category, preferring the task's energy level.
+
+    The energy preference only reorders within the earliest available day — a
+    heavy task grabs a deep window over a shallow one the same day, but is never
+    pushed to a later day just to find deep time (that's the planner's job to flag
+    as at-risk, not to silently delay).
+    """
+    first_i: int | None = None
+    earliest_day = None
     for i, s in enumerate(slots):
-        if s.category != category or category in s.skip_categories:
+        if not _slot_usable(s, category, remaining, deep_used):
             continue
-        if s.minutes < min(settings.plan_min_block_min, remaining):
-            continue
-        day_key = (s.start.date(), category)
-        if deep_used.get(day_key, 0) >= settings.plan_deep_work_min_per_day:
-            continue
-        return i
-    return None
+        if first_i is None:
+            first_i, earliest_day = i, s.start.date()
+        if s.start.date() != earliest_day:
+            break  # past the earliest day — stop hunting for a preferred match
+        if prefer_energy and s.energy == prefer_energy:
+            return i
+    return first_i
 
 
 def _subtract(

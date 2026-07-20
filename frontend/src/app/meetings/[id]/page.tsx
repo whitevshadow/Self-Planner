@@ -8,6 +8,7 @@ import SummaryCard from "@/components/SummaryCard";
 import TaskTable from "@/components/TaskTable";
 import TranscriptView from "@/components/TranscriptView";
 import {
+  audioUrl,
   formatDuration,
   getMeeting,
   isProcessing,
@@ -38,6 +39,14 @@ export default function MeetingPage({ params }: { params: Promise<{ id: string }
   const [stalled, setStalled] = useState(false);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollingSince = useRef<number | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const seekAudio = useCallback((sec: number, play: boolean) => {
+    const el = audioRef.current;
+    if (!el) return;
+    el.currentTime = sec;
+    if (play) el.play().catch(() => {});
+  }, []);
 
   const stopPolling = useCallback(() => {
     if (timer.current) clearInterval(timer.current);
@@ -83,6 +92,13 @@ export default function MeetingPage({ params }: { params: Promise<{ id: string }
       if (t?.segment_idx != null) setFlashIdx(t.segment_idx);
     }
   }, [meeting?.id, focusTaskId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Move the audio playhead (without auto-playing) to whatever segment is flashed.
+  useEffect(() => {
+    if (flashIdx == null || !meeting?.has_audio) return;
+    const seg = meeting.segments.find((s) => s.idx === flashIdx);
+    if (seg) seekAudio(seg.start_sec, false);
+  }, [flashIdx, meeting?.id, meeting?.has_audio, seekAudio]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const myHighlights = useMemo(() => {
     if (!meeting) return new Set<number>();
@@ -255,10 +271,14 @@ export default function MeetingPage({ params }: { params: Promise<{ id: string }
             <h2>Transcript</h2>
             {myHighlights.size > 0 && <span className="muted">highlighted = produced my tasks</span>}
           </div>
+          {meeting.has_audio && (
+            <audio ref={audioRef} className="meeting-audio" controls preload="metadata" src={audioUrl(meeting.id)} />
+          )}
           <TranscriptView
             meeting={meeting}
             highlightIdxs={myHighlights}
             flashIdx={flashIdx}
+            onPlaySegment={meeting.has_audio ? (sec) => seekAudio(sec, true) : undefined}
             manualLabeling={meeting.diarize_status === "failed" || meeting.diarize_status === "skipped"}
             onChanged={setMeeting}
           />

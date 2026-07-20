@@ -20,7 +20,7 @@ export default function AvailabilityPage() {
   const [saving, setSaving] = useState(false);
 
   // new-rule / new-busy form state
-  const [nr, setNr] = useState({ category: "work", weekday: 0, start_t: "10:00", end_t: "19:00" });
+  const [nr, setNr] = useState({ category: "work", weekday: 0, start_t: "10:00", end_t: "19:00", energy: "deep" });
   const [nb, setNb] = useState({ label: "", weekday: "0", start_t: "20:00", end_t: "21:00" });
 
   const refresh = useCallback(async () => {
@@ -50,6 +50,25 @@ export default function AvailabilityPage() {
     }
   }
 
+  async function toggleEnergy(idx: number) {
+    if (!rules) return;
+    setSaving(true);
+    try {
+      setRules(
+        await putAvailability(
+          rules.map((r, i) =>
+            i === idx ? { ...r, energy: r.energy === "deep" ? "shallow" : "deep" } : r
+          )
+        )
+      );
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Save failed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function addRule(e: React.FormEvent) {
     e.preventDefault();
     if (!rules) return;
@@ -63,6 +82,7 @@ export default function AvailabilityPage() {
             weekday: Number(nr.weekday),
             start_t: nr.start_t,
             end_t: nr.end_t,
+            energy: nr.energy as "deep" | "shallow",
           },
         ])
       );
@@ -103,6 +123,11 @@ export default function AvailabilityPage() {
       {error && <div className="error-banner">{error}</div>}
 
       <h2 className="list-title">Weekly windows</h2>
+      <p className="muted" style={{ marginTop: "-0.4rem" }}>
+        Mark your sharp hours <strong>deep</strong> and low-energy time <strong>shallow</strong> —
+        heavy tasks (high-priority or long) are placed in deep windows first. Click a window&apos;s
+        energy to flip it.
+      </p>
       {rules && (
         <div className="task-table-wrap">
           <table className="task-table">
@@ -111,6 +136,7 @@ export default function AvailabilityPage() {
                 <th>Day</th>
                 <th>Window</th>
                 <th>Category</th>
+                <th>Energy</th>
                 <th></th>
               </tr>
             </thead>
@@ -125,6 +151,16 @@ export default function AvailabilityPage() {
                     <span className={`assign-badge ${r.category === "work" ? "mine" : "maybe"}`}>
                       {r.category}
                     </span>
+                  </td>
+                  <td>
+                    <button
+                      className={`energy-badge ${r.energy}`}
+                      disabled={saving}
+                      onClick={() => toggleEnergy(i)}
+                      title="Click to switch deep ↔ shallow"
+                    >
+                      {r.energy}
+                    </button>
                   </td>
                   <td>
                     <button className="ghost-danger" disabled={saving} onClick={() => removeRule(i)}>
@@ -152,6 +188,10 @@ export default function AvailabilityPage() {
         </select>
         <input type="time" value={nr.start_t} onChange={(e) => setNr({ ...nr, start_t: e.target.value })} className="cell-input" />
         <input type="time" value={nr.end_t} onChange={(e) => setNr({ ...nr, end_t: e.target.value })} className="cell-input" />
+        <select value={nr.energy} onChange={(e) => setNr({ ...nr, energy: e.target.value })} className="cell-input">
+          <option value="deep">deep</option>
+          <option value="shallow">shallow</option>
+        </select>
         <button type="submit" disabled={saving}>
           Add window
         </button>

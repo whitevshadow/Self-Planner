@@ -2,9 +2,10 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# Resolve backend/.env from this file's location so settings load identically
-# regardless of the process working directory.
-_ENV_FILE = Path(__file__).resolve().parents[1] / ".env"
+# Single project env at the repo root, resolved from this file's location so
+# settings load identically regardless of the process working directory.
+# config.py -> app -> backend -> repo root.
+_ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
 
 
 class Settings(BaseSettings):
@@ -21,10 +22,15 @@ class Settings(BaseSettings):
     minio_secret_key: str = "minioadmin"
     minio_bucket: str = "meetings-audio"
     minio_secure: bool = False
+    # ASR backend: "local" = faster-whisper on this machine; "gateway" = the
+    # OpenAI-compatible gateway's /v1/audio/transcriptions (reuses LLM creds).
+    asr_provider: str = "local"
+    asr_model: str = "whisper-large-v3"  # gateway ASR model when asr_provider=gateway
     whisper_model: str = "small"
     whisper_device: str = "cpu"
     whisper_compute: str = "int8"
-    # "translate" = always output English; "transcribe" = keep the spoken language
+    # "translate" = always output English; "transcribe" = keep the spoken language.
+    # Local-only: the gateway is transcribe-only and ignores this.
     whisper_task: str = "translate"
     max_upload_mb: int = 200
     # Gateway/OpenAI-compatible LLM config

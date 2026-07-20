@@ -27,6 +27,7 @@ class MeetingListItem(BaseModel):
     status: str
     duration_sec: float | None = None
     error: str | None = None
+    has_audio: bool = True
     created_at: datetime
 
 
@@ -50,6 +51,7 @@ class TaskOut(BaseModel):
     category: str = "work"
     estimated_minutes: int | None = None
     estimate_source: str = "llm"
+    intensity: Literal["heavy", "light"] | None = None
     steps: list[str] = []
     progress: int = 0
     start_date: date | None = None
@@ -67,7 +69,15 @@ class TaskUpdate(BaseModel):
     category: Literal["work", "personal"] | None = None
     estimated_minutes: int | None = Field(default=None, ge=5, le=960)
     progress: int | None = Field(default=None, ge=0, le=100)
+    intensity: Literal["heavy", "light"] | None = None  # null = auto
     # Distinguish "field omitted" from "field set to null" via model_fields_set.
+
+
+class MeetingTextIn(BaseModel):
+    """Create a meeting from a pasted transcript / notes instead of audio."""
+
+    title: str | None = None
+    text: str = Field(min_length=1)
 
 
 class MeetingDetail(MeetingListItem):
@@ -141,6 +151,16 @@ class ExtractResult(BaseModel):
     tasks: list[ExtractedTask] = []
 
 
+class TaskMatch(BaseModel):
+    """Maps one re-extracted candidate to an existing task id (or null = new)."""
+    candidate_index: int
+    existing_id: str | None = None
+
+
+class TaskMatchResult(BaseModel):
+    matches: list[TaskMatch] = []
+
+
 class TaskClassification(BaseModel):
     task_id: str
     assignment: Literal["mine", "maybe", "others"]
@@ -202,6 +222,7 @@ class AvailabilityRuleOut(BaseModel):
     weekday: int = Field(ge=0, le=6)
     start_t: dt_time
     end_t: dt_time
+    energy: Literal["deep", "shallow"] = "deep"
 
 
 class AvailabilityRuleIn(BaseModel):
@@ -209,6 +230,7 @@ class AvailabilityRuleIn(BaseModel):
     weekday: int = Field(ge=0, le=6)
     start_t: dt_time
     end_t: dt_time
+    energy: Literal["deep", "shallow"] = "deep"
 
 
 class BusyBlockOut(BaseModel):
@@ -273,6 +295,30 @@ class DayBlock(BaseModel):
 class PlanResponse(BaseModel):
     warnings: list[PlanWarningOut] = []
     today: list[DayBlock] = []
+
+
+class NowBlock(BaseModel):
+    """A single schedule block for the live 'now' view."""
+    id: uuid.UUID
+    task_id: uuid.UUID
+    task_title: str
+    category: str
+    priority: str | None = None
+    start_at: datetime
+    end_at: datetime
+    status: str
+
+
+class NowView(BaseModel):
+    """Deterministic 'what am I doing right now' snapshot — no LLM."""
+    now: datetime
+    current: NowBlock | None = None  # block spanning the current moment
+    next: NowBlock | None = None  # next block starting after now (may be a later day)
+    free_minutes: int | None = None  # minutes until `next` starts, when nothing is current
+
+
+class BlockExtendIn(BaseModel):
+    minutes: int = Field(default=15, ge=5, le=120)
 
 
 class TimetableEntry(BaseModel):

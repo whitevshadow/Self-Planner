@@ -4,63 +4,74 @@
   padding: 0;
 }
 
-/* Glass-dark design system — tokens from redesign-plan.md (approved Variant A):
-   deep navy canvas, violet glow, translucent panels, one violet accent.
-   Light theme is a frosted-daylight override on the same variables. */
+/* Power-user design system — dense, monochromatic, IDE-like.
+   Neutral slate/zinc base to reduce eye strain; a single muted indigo accent
+   reserved strictly for primary actions and active/focus states. High-contrast
+   Light/Dark on the same variables. Compact spacing scale (4/8px). */
 :root,
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #0a0d16;
-  --glow-a: rgba(124, 92, 255, 0.16);
-  --glow-b: rgba(56, 189, 248, 0.07);
-  --surface: rgba(255, 255, 255, 0.045); /* glass panel fill */
-  --surface-2: rgba(255, 255, 255, 0.07);
-  --surface-solid: #141827; /* backdrop-filter fallback + dropdowns */
-  --border: rgba(255, 255, 255, 0.09); /* glass hairline */
-  --border-strong: rgba(255, 255, 255, 0.16);
-  --text: rgba(255, 255, 255, 0.92);
-  --text-dim: rgba(255, 255, 255, 0.55);
-  --text-faint: rgba(255, 255, 255, 0.35);
-  --accent: #7c5cff;
-  --accent-hover: #6847f0;
-  --accent-soft: rgba(124, 92, 255, 0.18);
-  --danger: #ff6b6b;
-  --success: #3ddc84;
-  --warn: #ffb020;
-  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
-  --radius: 16px;
+  --bg: #0b0e14; /* zinc/slate canvas */
+  --glow-a: transparent; /* form over form: no decorative glow */
+  --glow-b: transparent;
+  --surface: #14181f; /* panel */
+  --surface-2: #1b212b; /* input / hover / raised */
+  --surface-solid: #14181f; /* dropdowns / popovers */
+  --row-alt: rgba(255, 255, 255, 0.022); /* zebra striping */
+  --row-hover: rgba(255, 255, 255, 0.05);
+  --border: #262d38; /* crisp hairline, not translucent */
+  --border-strong: #38414f;
+  --text: #e7ecf3; /* ~13.5:1 on --bg */
+  --text-dim: #99a3b2; /* ~6:1 */
+  --text-faint: #6b7482;
+  --accent: #7c85f0; /* muted indigo */
+  --accent-hover: #6670ec;
+  --accent-soft: rgba(124, 133, 240, 0.16);
+  --danger: #f0616d;
+  --danger-soft: rgba(240, 97, 109, 0.15);
+  --success: #46c46a;
+  --warn: #e0a635;
+  --glass-shadow: 0 1px 2px rgba(0, 0, 0, 0.4); /* flat, tight */
+  --radius: 8px;
+  --radius-sm: 6px;
 }
 
 :root[data-theme="light"] {
   color-scheme: light;
-  --bg: #eef0f5;
-  --glow-a: rgba(124, 92, 255, 0.14);
-  --glow-b: rgba(56, 189, 248, 0.1);
-  --surface: rgba(255, 255, 255, 0.6);
-  --surface-2: rgba(255, 255, 255, 0.85);
+  --bg: #f3f4f6; /* zinc-100 */
+  --glow-a: transparent;
+  --glow-b: transparent;
+  --surface: #ffffff;
+  --surface-2: #eceef2;
   --surface-solid: #ffffff;
-  --border: rgba(15, 20, 40, 0.1);
-  --border-strong: rgba(15, 20, 40, 0.2);
-  --text: rgba(15, 18, 32, 0.92);
-  --text-dim: rgba(15, 18, 32, 0.6);
-  --text-faint: rgba(15, 18, 32, 0.4);
-  --accent: #6847f0;
-  --accent-hover: #5433e0;
-  --accent-soft: rgba(124, 92, 255, 0.14);
-  --danger: #d64550;
-  --success: #14934d;
-  --warn: #c47b00;
-  --glass-shadow: 0 8px 32px rgba(70, 80, 120, 0.12);
+  --row-alt: rgba(15, 20, 35, 0.025);
+  --row-hover: rgba(15, 20, 35, 0.05);
+  --border: #d7dbe1;
+  --border-strong: #b9bfc9;
+  --text: #14181f; /* ~14:1 on --bg */
+  --text-dim: #55606f;
+  --text-faint: #8a93a1;
+  --accent: #5661e0;
+  --accent-hover: #454fce;
+  --accent-soft: rgba(86, 97, 224, 0.12);
+  --danger: #d33544;
+  --danger-soft: rgba(211, 53, 68, 0.1);
+  --success: #16924a;
+  --warn: #b5790a;
+  --glass-shadow: 0 1px 2px rgba(15, 20, 35, 0.08);
+  --radius: 8px;
+  --radius-sm: 6px;
 }
 
 body {
   background: var(--bg);
-  background-image: radial-gradient(1100px 700px at 8% -10%, var(--glow-a), transparent 60%),
-    radial-gradient(900px 600px at 105% 110%, var(--glow-b), transparent 55%);
-  background-attachment: fixed;
   color: var(--text);
   font-family: var(--font-body, Inter), -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
-  line-height: 1.5;
+  line-height: 1.45;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  /* Monospace for dates, times, durations and identifiers — aligns in lists */
+  --font-mono: ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
 }
 
 h1,
@@ -130,6 +141,41 @@ main {
   color: var(--text-dim);
   font-size: 0.85rem;
   flex: 1 1 220px;
+}
+
+.upload-tabs {
+  flex-basis: 100%;
+  display: flex;
+  gap: 0.4rem;
+}
+
+.upload-tabs button {
+  background: var(--surface-2);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 0.35rem 0.85rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.upload-tabs button.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.upload-textarea {
+  flex-basis: 100%;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--text);
+  padding: 0.6rem 0.7rem;
+  font-size: 0.9rem;
+  font-family: inherit;
+  line-height: 1.5;
+  resize: vertical;
 }
 
 input[type="file"]::file-selector-button {
@@ -663,6 +709,64 @@ button.ghost-danger:hover {
   font-size: 0.93rem;
 }
 
+.meeting-audio {
+  width: 100%;
+  height: 38px;
+  margin: 0.5rem 0 0.25rem;
+}
+
+.energy-badge {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  text-transform: capitalize;
+}
+
+.energy-badge.deep {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.energy-badge.shallow {
+  background: var(--surface-2);
+  color: var(--text-dim);
+}
+
+.backup-pre {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 0.7rem 0.85rem;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.8rem;
+  color: var(--text);
+  overflow-x: auto;
+  white-space: pre;
+  margin: 0.6rem 0;
+}
+
+button.ts-play {
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 0.8rem;
+  padding: 0.15rem 0.2rem 0 0;
+  cursor: pointer;
+  flex-shrink: 0;
+  opacity: 0.65;
+  transition: opacity 0.15s;
+}
+
+.segment:hover button.ts-play,
+button.ts-play:hover {
+  opacity: 1;
+}
+
 .error-banner {
   background: rgba(255, 107, 107, 0.12);
   border: 1px solid var(--danger);
@@ -746,31 +850,66 @@ button.ghost-danger:hover {
 .task-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.88rem;
+  font-size: 0.83rem;
 }
 
 .task-table th {
   text-align: left;
   color: var(--text-dim);
-  font-size: 0.75rem;
+  font-size: 0.68rem;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding: 0.6rem 0.8rem;
-  border-bottom: 1px solid var(--border);
+  letter-spacing: 0.06em;
+  padding: 0.5rem 0.7rem;
+  border-bottom: 1px solid var(--border-strong);
+  /* Sticky header so column labels stay visible while scanning long lists */
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface-2);
+  white-space: nowrap;
 }
 
 .task-table td {
-  padding: 0.55rem 0.8rem;
+  padding: 0.4rem 0.7rem;
   border-bottom: 1px solid var(--border);
   vertical-align: top;
+}
+
+/* Zebra striping for readability across wide rows */
+.task-table tbody tr:nth-child(even) {
+  background: var(--row-alt);
+}
+
+.task-table tbody tr:hover {
+  background: var(--row-hover);
 }
 
 .task-table tr:last-child td {
   border-bottom: none;
 }
 
+/* Monospaced, right-aligned dates/estimates so they align vertically */
+.task-table input[type="date"],
+.est-cell {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.78rem;
+}
+
+/* Row hover reveals the destructive quick-action, saving horizontal space */
+.task-table tbody td:last-child .ghost-danger {
+  opacity: 0;
+  transition: opacity 0.1s ease;
+}
+
+.task-table tbody tr:hover td:last-child .ghost-danger,
+.task-table tbody td:last-child .ghost-danger:focus-visible {
+  opacity: 1;
+}
+
 .task-closed {
-  opacity: 0.55;
+  opacity: 0.5;
 }
 
 .task-title-cell {
@@ -1062,9 +1201,31 @@ button.ghost:hover:not(:disabled) {
   display: flex;
   align-items: center;
   gap: 1rem;
-  padding: 0.7rem 0;
+  padding: 0.7rem;
   border-top: 1px solid var(--border);
   margin-top: 0.7rem;
+  border-radius: 8px;
+  border-left: 3px solid transparent;
+  transition: background 0.12s, border-left-color 0.12s;
+}
+
+.inbox-item.focused {
+  background: var(--surface-2);
+  border-left-color: var(--accent);
+}
+
+.kbd-hint {
+  white-space: nowrap;
+}
+
+kbd {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.72rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.05rem 0.3rem;
+  color: var(--text);
 }
 
 .inbox-info {
@@ -1225,6 +1386,89 @@ button.ghost:hover:not(:disabled) {
   top: 1rem;
 }
 
+.today-actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.now-card {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 0.7rem 0.8rem;
+  margin-bottom: 0.8rem;
+}
+
+.now-card.active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface-2));
+}
+
+.now-head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-dim);
+}
+
+.now-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 60%, transparent);
+  animation: now-pulse 2s ease-out infinite;
+  flex-shrink: 0;
+}
+
+.now-dot.idle {
+  background: var(--text-dim);
+  animation: none;
+}
+
+@keyframes now-pulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent); }
+  100% { box-shadow: 0 0 0 7px transparent; }
+}
+
+.now-time {
+  margin-left: auto;
+  font-family: ui-monospace, Consolas, monospace;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--accent);
+}
+
+.now-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.3;
+  margin: 0.35rem 0;
+  overflow-wrap: anywhere;
+}
+
+.now-actions {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.now-next {
+  font-size: 0.76rem;
+  color: var(--text-dim);
+  margin-top: 0.5rem;
+}
+
+.now-error {
+  font-size: 0.75rem;
+  color: var(--danger);
+  margin-top: 0.4rem;
+}
+
 .block-list {
   display: flex;
   flex-direction: column;
@@ -1321,11 +1565,15 @@ button.mini.ghost {
 .chat-box {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius);
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 160px);
+  height: calc(100vh - 150px);
   min-height: 400px;
+  /* Constrain the conversation to an optimal reading measure */
+  max-width: 760px;
+  margin: 0 auto;
+  width: 100%;
 }
 
 .chat-scroll {
@@ -1532,9 +1780,10 @@ button.mini.ghost {
   background: #fff;
 }
 
-/* ─── Glass shell (redesign-plan.md) ─────────────────────────────── */
+/* ─── App shell ──────────────────────────────────────────────────── */
 
-/* Glass treatment for every existing panel class — one place, all pages */
+/* Crisp, flat panels — one place, all pages. No blur, tight shadow, thin
+   borders: density and legibility over decoration. */
 .upload-card,
 .record-card,
 .meeting-card,
@@ -1549,19 +1798,9 @@ button.mini.ghost {
 .gantt-wrap,
 .tt-preview,
 .rec-step-guide {
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
   border-radius: var(--radius);
   box-shadow: var(--glass-shadow);
-  transition: border-color 0.15s ease;
-}
-
-@supports not (backdrop-filter: blur(1px)) {
-  .upload-card, .record-card, .meeting-card, .summary-card, .task-table-wrap,
-  .today-col, .chat-box, .mini-cal, .hp-section, .inbox, .speaker-bar,
-  .gantt-wrap, .tt-preview, .sidebar, .glass-drawer, .search-pop {
-    background: var(--surface-solid);
-  }
+  transition: border-color 0.12s ease;
 }
 
 .shell {
@@ -1570,19 +1809,17 @@ button.mini.ghost {
 }
 
 .sidebar {
-  width: 250px;
+  width: 216px;
   flex-shrink: 0;
   position: sticky;
   top: 0;
   height: 100vh;
-  padding: 20px 14px;
+  padding: 14px 10px;
   background: var(--surface);
   border-right: 1px solid var(--border);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
   overflow-y: auto;
 }
 
@@ -1630,12 +1867,12 @@ button.mini.ghost {
 .sb-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 9px 10px;
-  border-radius: 9px;
-  font-size: 0.86rem;
+  gap: 9px;
+  padding: 6px 9px;
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
   color: var(--text-dim);
-  min-height: 38px;
+  min-height: 30px;
 }
 
 .sb-row:hover {
@@ -1735,9 +1972,7 @@ button.mini.ghost {
   position: sticky;
   top: 0;
   z-index: 90;
-  background: color-mix(in srgb, var(--bg) 82%, transparent);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  background: var(--surface);
 }
 
 .appbar-title {
@@ -1765,10 +2000,10 @@ button.mini.ghost {
 }
 
 main {
-  max-width: 1120px;
+  max-width: 1320px;
   width: 100%;
   margin: 0 auto;
-  padding: 1.5rem 1.75rem 4rem;
+  padding: 1.1rem 1.5rem 3rem;
 }
 
 /* Entrance motion — once per navigation */

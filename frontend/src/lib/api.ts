@@ -23,7 +23,18 @@ export interface Meeting {
   status: "uploaded" | "transcribing" | "done" | "failed";
   duration_sec: number | null;
   error: string | null;
+  has_audio: boolean;
   created_at: string;
+}
+
+/** Range-streamed audio URL for a meeting's <audio> element. */
+export function audioUrl(meetingId: string): string {
+  return `${API_BASE}/meetings/${meetingId}/audio`;
+}
+
+/** Full-data backup zip (meetings, tasks, plan, settings + per-meeting Markdown). */
+export function exportUrl(): string {
+  return `${API_BASE}/export`;
 }
 
 export interface Task {
@@ -45,6 +56,7 @@ export interface Task {
   category: "work" | "personal";
   estimated_minutes: number | null;
   estimate_source: string;
+  intensity: "heavy" | "light" | null;
   steps: string[];
   progress: number;
   at_risk: boolean;
@@ -112,6 +124,17 @@ export async function uploadMeeting(file: File, title?: string): Promise<Meeting
   } finally {
     clearTimeout(timer);
   }
+}
+
+export async function createMeetingFromText(text: string, title?: string): Promise<MeetingDetail> {
+  // Returns 202 immediately; extraction runs in the background — poll getMeeting.
+  return handle(
+    await fetch(`${API_BASE}/meetings/text`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, title: title || null }),
+    })
+  );
 }
 
 export async function deleteMeeting(id: string): Promise<void> {
@@ -231,6 +254,7 @@ export interface AvailabilityRule {
   weekday: number; // 0=Mon … 6=Sun
   start_t: string; // "10:00:00"
   end_t: string;
+  energy: "deep" | "shallow";
 }
 
 export interface BusyBlock {
@@ -314,6 +338,47 @@ export async function runPlan(): Promise<PlanResponse> {
 
 export async function planToday(): Promise<DayBlock[]> {
   return handle(await fetch(`${API_BASE}/plan/today`, { cache: "no-store" }));
+}
+
+export interface NowBlock {
+  id: string;
+  task_id: string;
+  task_title: string;
+  category: string;
+  priority: string | null;
+  start_at: string;
+  end_at: string;
+  status: "planned" | "in_progress" | "done" | "skipped";
+}
+
+export interface NowView {
+  now: string;
+  current: NowBlock | null;
+  next: NowBlock | null;
+  free_minutes: number | null;
+}
+
+export async function getNow(): Promise<NowView> {
+  return handle(await fetch(`${API_BASE}/plan/now`, { cache: "no-store" }));
+}
+
+/** Deterministic repack from now — no triage, returns immediately. */
+export async function replanToday(): Promise<PlanResponse> {
+  return handle(await fetch(`${API_BASE}/plan/replan`, { method: "POST" }));
+}
+
+export async function extendBlock(id: string, minutes = 15): Promise<PlanResponse> {
+  return handle(
+    await fetch(`${API_BASE}/schedule-blocks/${id}/extend`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ minutes }),
+    })
+  );
+}
+
+export async function carryOverBlock(id: string): Promise<PlanResponse> {
+  return handle(await fetch(`${API_BASE}/schedule-blocks/${id}/carry-over`, { method: "POST" }));
 }
 
 export async function patchBlock(

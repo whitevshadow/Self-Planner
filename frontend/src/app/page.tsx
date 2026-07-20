@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import MiniCalendar from "@/components/MiniCalendar";
 import TodayColumn from "@/components/TodayColumn";
 import {
@@ -17,6 +17,8 @@ export default function MyTasksPage() {
   const [mine, setMine] = useState<Task[] | null>(null);
   const [inbox, setInbox] = useState<Task[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [focusIdx, setFocusIdx] = useState(0);
+  const focusedRef = useRef<HTMLDivElement | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -40,6 +42,38 @@ export default function MyTasksPage() {
     await (action === "confirm" ? confirmTask(id) : dismissTask(id));
     refresh();
   }
+
+  // Keyboard-driven inbox: j/k move, m = mine, x = not mine. Skips typing fields.
+  useEffect(() => {
+    const items = inbox ?? [];
+    if (items.length === 0) return;
+    function onKey(e: KeyboardEvent) {
+      const el = e.target as HTMLElement | null;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable))
+        return;
+      const cur = Math.min(focusIdx, items.length - 1);
+      if (e.key === "j" || e.key === "ArrowDown") {
+        e.preventDefault();
+        setFocusIdx(Math.min(items.length - 1, cur + 1));
+      } else if (e.key === "k" || e.key === "ArrowUp") {
+        e.preventDefault();
+        setFocusIdx(Math.max(0, cur - 1));
+      } else if (e.key === "m" || e.key === "Enter") {
+        e.preventDefault();
+        act(items[cur].id, "confirm");
+      } else if (e.key === "x") {
+        e.preventDefault();
+        act(items[cur].id, "dismiss");
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [inbox, focusIdx]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Keep the focused inbox card in view as j/k moves through the list.
+  useEffect(() => {
+    focusedRef.current?.scrollIntoView({ block: "nearest" });
+  }, [focusIdx, inbox]);
 
   async function toggleDone(t: Task) {
     await updateTask(t.id, { status: t.status === "done" ? "open" : "done" });
@@ -72,6 +106,7 @@ export default function MyTasksPage() {
         <div className="title">
           {t.title}
           {t.priority && <span className={`prio ${t.priority}`}>{t.priority}</span>}
+          {t.at_risk && <span className="prio high" title="Can't be finished before its due date at the current plan">at risk</span>}
         </div>
         <div className="meta">
           {t.due_date ? (
@@ -117,25 +152,38 @@ export default function MyTasksPage() {
           <h2>
             Maybe mine <span className="inbox-count">{inbox.length}</span>
           </h2>
-          <p className="muted">Tasks the AI wasn&apos;t sure about — confirm or dismiss:</p>
-          {inbox.map((t) => (
-            <div className="inbox-item" key={t.id}>
-              <div className="inbox-info">
-                <div className="title">{t.title}</div>
-                {t.assignment_reason && <div className="reason">{t.assignment_reason}</div>}
-                {t.source_quote && <div className="quote">“{t.source_quote}”</div>}
+          <p className="muted">
+            Tasks the AI wasn&apos;t sure about — confirm or dismiss.{" "}
+            <span className="kbd-hint">
+              <kbd>j</kbd>/<kbd>k</kbd> move · <kbd>m</kbd> mine · <kbd>x</kbd> not mine
+            </span>
+          </p>
+          {inbox.map((t, i) => {
+            const focused = i === Math.min(focusIdx, inbox.length - 1);
+            return (
+              <div
+                className={`inbox-item ${focused ? "focused" : ""}`}
+                key={t.id}
+                ref={focused ? focusedRef : undefined}
+                onMouseEnter={() => setFocusIdx(i)}
+              >
+                <div className="inbox-info">
+                  <div className="title">{t.title}</div>
+                  {t.assignment_reason && <div className="reason">{t.assignment_reason}</div>}
+                  {t.source_quote && <div className="quote">“{t.source_quote}”</div>}
+                </div>
+                <div className="inbox-actions">
+                  <button onClick={() => act(t.id, "confirm")}>Mine</button>
+                  <button className="ghost-danger" onClick={() => act(t.id, "dismiss")}>
+                    Not mine
+                  </button>
+                  <Link href={`/meetings/${t.meeting_id}?task=${t.id}`} className="meeting-link">
+                    see context →
+                  </Link>
+                </div>
               </div>
-              <div className="inbox-actions">
-                <button onClick={() => act(t.id, "confirm")}>Mine</button>
-                <button className="ghost-danger" onClick={() => act(t.id, "dismiss")}>
-                  Not mine
-                </button>
-                <Link href={`/meetings/${t.meeting_id}?task=${t.id}`} className="meeting-link">
-                  see context →
-                </Link>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

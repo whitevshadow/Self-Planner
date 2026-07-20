@@ -10,9 +10,12 @@ from ..models import AvailabilityRule, BusyBlock, ScheduleBlock, Task
 from ..schemas import (
     AvailabilityRuleIn,
     AvailabilityRuleOut,
+    BlockExtendIn,
     BusyBlockIn,
     BusyBlockOut,
     DayBlock,
+    NowBlock,
+    NowView,
     PlanResponse,
     PlanWarningOut,
     ScheduleBlockOut,
@@ -101,6 +104,48 @@ def run_plan(db: Session = Depends(get_db)):
     return resp
 
 
+@router.post("/plan/replan", response_model=PlanResponse)
+def replan_today(db: Session = Depends(get_db)):
+    """Deterministic repack from *now* — no triage, no LLM.
+
+    For when the day drifts (a task ran long): reflows future, unpinned blocks
+    around what's already happened. Instant, unlike /plan which re-triages first.
+    """
+    warnings = planner.replan(db)
+    return PlanResponse(
+        warnings=[PlanWarningOut(**w.__dict__) for w in warnings],
+        today=_day_blocks(db, datetime.now(planner.tz()).date()),
+    )
+
+
+@router.get("/plan/now", response_model=NowView)
+def plan_now(db: Session = Depends(get_db)):
+    """What am I doing right now, and what's next — pure SQL, no LLM."""
+    now = datetime.now(planner.tz())
+    upcoming = db.scalars(
+        select(ScheduleBlock)
+        .options(selectinload(ScheduleBlock.task))
+        .where(ScheduleBlock.end_at > now, ScheduleBlock.status.in_(("planned", "in_progress")))
+        .order_by(ScheduleBlock.start_at)
+    ).all()
+
+    current = next((b for b in upcoming if b.start_at <= now < b.end_at), None)
+    nxt = next((b for b in upcoming if b.start_at > now), None)
+
+    free_minutes = None
+    # Only meaningful as a "free for N min" gap when the next block is later today;
+    # a block tomorrow would otherwise report hundreds of idle minutes.
+    if current is None and nxt is not None and nxt.start_at.astimezone(planner.tz()).date() == now.date():
+        free_minutes = max(0, int((nxt.start_at - now).total_seconds() // 60))
+
+    return NowView(
+        now=now,
+        current=_now_block(current),
+        next=_now_block(nxt),
+        free_minutes=free_minutes,
+    )
+
+
 @router.get("/plan/today", response_model=list[DayBlock])
 def plan_today(db: Session = Depends(get_db)):
     return _day_blocks(db, datetime.now(planner.tz()).date())
@@ -137,6 +182,63 @@ def patch_block(block_id: uuid.UUID, patch: ScheduleBlockPatch, db: Session = De
         raise HTTPException(422, "end must be after start")
     db.commit()
     return block
+
+
+@router.post("/schedule-blocks/{block_id}/extend", response_model=PlanResponse)
+def extend_block(block_id: uuid.UUID, body: BlockExtendIn, db: Session = Depends(get_db)):
+    """"Still going" — grow the active block by N minutes and reflow the rest of
+    the day around it. Pinned so the follow-up replan keeps the longer block."""
+    block = db.get(ScheduleBlock, block_id)
+    if not block:
+        raise HTTPException(404, "Block not found")
+    if block.status in ("done", "skipped"):
+        raise HTTPException(409, "Block is already finished")
+    block.end_at = block.end_at + timedelta(minutes=body.minutes)
+    block.pinned = True
+    if block.status == "planned":
+        block.status = "in_progress"
+    db.commit()
+    warnings = planner.replan(db)
+    return PlanResponse(
+        warnings=[PlanWarningOut(**w.__dict__) for w in warnings],
+        today=_day_blocks(db, datetime.now(planner.tz()).date()),
+    )
+
+
+@router.post("/schedule-blocks/{block_id}/carry-over", response_model=PlanResponse)
+def carry_over_block(block_id: uuid.UUID, db: Session = Depends(get_db)):
+    """"Didn't finish" — close the active block now and let the remaining
+    estimate reschedule into the next free slot."""
+    block = db.get(ScheduleBlock, block_id)
+    if not block:
+        raise HTTPException(404, "Block not found")
+    if block.status in ("done", "skipped"):
+        raise HTTPException(409, "Block is already finished")
+    now = datetime.now(planner.tz())
+    # Shrink to actual time spent so the leftover estimate is what gets replanned.
+    block.end_at = max(block.start_at + timedelta(minutes=1), min(block.end_at, now))
+    block.status = "done"
+    db.commit()
+    warnings = planner.replan(db)
+    return PlanResponse(
+        warnings=[PlanWarningOut(**w.__dict__) for w in warnings],
+        today=_day_blocks(db, datetime.now(planner.tz()).date()),
+    )
+
+
+def _now_block(b: ScheduleBlock | None) -> NowBlock | None:
+    if b is None:
+        return None
+    return NowBlock(
+        id=b.id,
+        task_id=b.task_id,
+        task_title=b.task.title,
+        category=b.task.category,
+        priority=b.task.priority,
+        start_at=b.start_at,
+        end_at=b.end_at,
+        status=b.status,
+    )
 
 
 def _day_blocks(db: Session, day) -> list[DayBlock]:

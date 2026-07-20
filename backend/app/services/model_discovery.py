@@ -91,7 +91,7 @@ def ensure_env_models_written() -> None:
     extract = settings.llm_model_extract or pick_model_for_job("extract", ids)
     classify = settings.llm_model_classify or pick_model_for_job("classify", ids)
 
-    env_path = Path(__file__).resolve().parents[2] / ".env"  # backend/app/services/.. -> backend
+    env_path = Path(__file__).resolve().parents[3] / ".env"  # services -> app -> backend -> repo root
     if not env_path.exists():
         logger.warning("backend/.env not found at %s; skipping env write", env_path)
         return

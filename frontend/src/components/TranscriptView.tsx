@@ -16,12 +16,14 @@ export default function TranscriptView({
   meeting,
   highlightIdxs,
   flashIdx,
+  onPlaySegment,
   manualLabeling = false,
   onChanged,
 }: {
   meeting: MeetingDetail;
   highlightIdxs?: Set<number>;
   flashIdx?: number | null;
+  onPlaySegment?: (sec: number) => void;
   manualLabeling?: boolean;
   onChanged?: (m: MeetingDetail) => void;
 }) {
@@ -65,7 +67,18 @@ export default function TranscriptView({
             key={s.idx}
             ref={flashing ? flashRef : undefined}
           >
-            <span className="ts">[{formatTimestamp(s.start_sec)}]</span>
+            {onPlaySegment ? (
+              <button
+                type="button"
+                className="ts ts-play"
+                title="Play from here"
+                onClick={() => onPlaySegment(s.start_sec)}
+              >
+                ▶ {formatTimestamp(s.start_sec)}
+              </button>
+            ) : (
+              <span className="ts">[{formatTimestamp(s.start_sec)}]</span>
+            )}
             <span className="text">
               {speakerName && (
                 <strong style={{ color: colorFor(s) }}>{speakerName}: </strong>

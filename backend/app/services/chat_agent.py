@@ -95,47 +95,78 @@ def handle_message(db: Session, user_text: str) -> list[ChatMessage]:
         today=now.date().isoformat(), weekday=now.strftime("%A"), tz=settings.timezone
     )
 
-    # Conversation context: last 20 messages.
+    # Conversation context: last 20 messages. A past tool call is replayed as the
+    # assistant action that caused it plus the result, so the model keeps a coherent
+    # picture of what it already did across turns (not just a dangling result).
     history = list(
         db.scalars(select(ChatMessage).order_by(ChatMessage.created_at.desc()).limit(20))
     )[::-1]
-    messages = [{"role": "system", "content": system}] + [
-        {"role": m.role if m.role != "tool" else "user",
-         "content": m.content if m.role != "tool" else f"[tool result] {m.content}"}
-        for m in history
-    ]
+    messages: list[dict] = [{"role": "system", "content": system}]
+    for m in history:
+        if m.role == "tool":
+            call = (m.tool_calls or [{}])[0]
+            messages.append({"role": "assistant", "content": json.dumps(
+                {"tool": call.get("tool"), "args": call.get("args", {})})})
+            messages.append({"role": "user", "content": f"[tool result] {m.content}"})
+        else:
+            messages.append({"role": m.role, "content": m.content})
 
     client = orchestrator._get_client()
     model = orchestrator._model_for_job("chat")
 
+    # Reasoning models (gpt-oss) need the effort param routed through the gateway,
+    # and hidden reasoning tokens count against max_tokens — a tight cap yields empty
+    # content with finish_reason="length". Mirror orchestrator.run_json_job here.
+    extra_body: dict = {}
+    if settings.llm_reasoning_effort not in ("", "none") and "gpt-oss" in model:
+        extra_body["reasoning_effort"] = settings.llm_reasoning_effort
+        extra_body["allowed_openai_params"] = ["reasoning_effort"]
+
     tools_ran = False
-    # gpt-oss hidden reasoning counts against max_tokens (see orchestrator
-    # budgets) — a tight cap yields empty content with finish_reason="length".
     max_tokens = orchestrator._max_tokens_for_job("chat")
-    for _ in range(MAX_TOOL_ROUNDS):
-        raw = ""
-        for _attempt in range(2):
+
+    def _next_action() -> dict | None:
+        """One model turn → parsed JSON action, or None if unrecoverable.
+
+        Retries on truncation (doubling the budget) and once on unparseable JSON,
+        feeding the parse error back so the model can correct itself — the same
+        self-healing run_json_job does, which the old chat loop lacked.
+        """
+        nonlocal max_tokens
+        for attempt in range(3):
             try:
-                resp = client.chat.completions.create(
-                    model=model, messages=messages, temperature=0.2, max_tokens=max_tokens
+                resp = orchestrator._create_with_retry(
+                    client, "chat", model=model, messages=messages,
+                    temperature=0.2, max_tokens=max_tokens, extra_body=extra_body,
                 )
-            except Exception as exc:
-                # If tools already executed, surface partial success instead of an
-                # error — a retried request must not re-run the same actions.
-                if tools_ran:
-                    save("assistant", "I applied the actions above, but lost the connection while wrapping up. Ask me to continue if something is missing.")
-                    return new_messages
-                raise exc
+            except Exception:
+                if tools_ran:  # partial success — never re-run applied actions
+                    return None
+                raise
             choice = resp.choices[0]
             raw = choice.message.content or ""
             if choice.finish_reason == "length":
                 max_tokens *= 2
                 continue
-            break
-        try:
-            action = orchestrator._extract_json(raw)
-        except Exception:
-            save("assistant", raw.strip() or "Sorry, I had trouble forming a response — try again.")
+            try:
+                return orchestrator._extract_json(raw)
+            except Exception as exc:
+                if attempt >= 2:
+                    return None
+                messages.append({"role": "assistant", "content": raw})
+                messages.append({"role": "user", "content": (
+                    f"That was not valid JSON ({exc}). Reply again with ONLY one JSON "
+                    'object: {"reply": "..."} or {"tool": "...", "args": {...}}.'
+                )})
+        return None
+
+    for _ in range(MAX_TOOL_ROUNDS):
+        action = _next_action()
+        if action is None:
+            save("assistant",
+                 "I applied the actions above, but had trouble wrapping up — ask me to continue if something's missing."
+                 if tools_ran else
+                 "Sorry, I had trouble forming a response — please try again.")
             return new_messages
 
         if "reply" in action:
@@ -151,7 +182,7 @@ def handle_message(db: Session, user_text: str) -> list[ChatMessage]:
         tools_ran = True
         save("tool", json.dumps(result) if not isinstance(result, str) else result,
              tool_calls=[{"tool": tool, "args": args}])
-        messages.append({"role": "assistant", "content": raw})
+        messages.append({"role": "assistant", "content": json.dumps({"tool": tool, "args": args})})
         messages.append({"role": "user", "content": f"[tool result] {json.dumps(result, default=str)[:3000]}"})
 
     save("assistant", "I hit my tool-call limit for this message — the actions above were applied.")

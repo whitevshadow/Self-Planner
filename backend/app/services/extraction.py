@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..models import Meeting, Person, Task
-from ..schemas import ExtractResult, MinutesResult, SummaryResult
+from ..schemas import ExtractResult, MinutesResult, SummaryResult, TaskMatchResult
 from . import orchestrator, prompts
 
 logger = logging.getLogger(__name__)
@@ -293,61 +293,148 @@ def _minutes_tasks_block(tasks: list) -> str:
 
 
 def _dedupe_tasks(tasks: list) -> list:
-    """Drop near-identical extracted tasks (same action mentioned twice)."""
+    """Drop near-identical extracted tasks (same action mentioned twice).
+
+    The two extraction waves often surface the same commitment with a different
+    owner guess (e.g. "Anish" vs null). Treat those as one task — matching titles
+    with a compatible owner (equal, or either side unknown) collapse, and the
+    surviving row keeps whichever owner is actually named.
+    """
     kept = []
     for t in tasks:
-        duplicate = any(
-            difflib.SequenceMatcher(None, k.title.lower(), t.title.lower()).ratio() >= 0.85
-            and (k.owner or "").lower() == (t.owner or "").lower()
-            for k in kept
-        )
-        if not duplicate:
+        merged = False
+        for k in kept:
+            if difflib.SequenceMatcher(None, k.title.lower(), t.title.lower()).ratio() < 0.85:
+                continue
+            ko, to = (k.owner or "").lower(), (t.owner or "").lower()
+            if ko == to or not ko or not to:
+                if not k.owner and t.owner:  # keep the named owner over a blank one
+                    k.owner = t.owner
+                merged = True
+                break
+        if not merged:
             kept.append(t)
     return kept
 
 
-def _reconcile_tasks(db: Session, meeting: Meeting, result: ExtractResult) -> None:
-    """Match new extraction against existing tasks by fuzzy title.
+def _title_ratio(a: str, b: str) -> float:
+    return difflib.SequenceMatcher(None, a.lower().strip(), b.lower().strip()).ratio()
 
-    Matched tasks are updated in place (id preserved); edited tasks are never
-    modified. Stale unmatched tasks are deleted only if unedited. New tasks
-    are inserted. All within the caller's transaction.
+
+def _update_from(task: Task, new) -> None:
+    """Copy re-extracted fields onto an existing task, preserving its id."""
+    task.title = new.title
+    task.owner = new.owner
+    task.due_date = new.due_date
+    task.priority = new.priority
+    task.dependencies = new.dependencies
+    task.source_quote = new.source_quote
+
+
+def _new_task(meeting_id, new) -> Task:
+    return Task(
+        meeting_id=meeting_id,
+        title=new.title,
+        owner=new.owner,
+        due_date=new.due_date,
+        priority=new.priority,
+        dependencies=new.dependencies,
+        source_quote=new.source_quote,
+    )
+
+
+def _reconcile_tasks(db: Session, meeting: Meeting, result: ExtractResult) -> None:
+    """Reconcile re-extracted tasks against existing ones, preserving task ids.
+
+    On a re-extraction (existing tasks present) an LLM maps each candidate to an
+    existing task id — so a task keeps its identity even if its wording changed a
+    lot between runs, which plain title matching would miss and duplicate. The
+    deterministic title match is the fallback when there is nothing to match
+    against yet, or if the LLM call fails. Edited tasks are never modified;
+    unmatched unedited tasks are deleted. All within the caller's transaction.
     """
     existing = list(meeting.tasks)
-    unmatched = set(id(t) for t in existing)
+    new_tasks = result.tasks
 
-    for new in result.tasks:
+    if existing and new_tasks:
+        try:
+            matches = _match_via_llm(new_tasks, existing)  # LLM call first — no mutation yet
+        except Exception:
+            logger.exception("LLM reconcile failed for meeting %s; using title match", meeting.id)
+        else:
+            _apply_matches(db, meeting, new_tasks, existing, matches)
+            return
+
+    _reconcile_by_title(db, meeting, new_tasks, existing)
+
+
+def _match_via_llm(new_tasks, existing) -> dict[int, Task | None]:
+    """Ask the LLM to map candidate index → existing task (or None = new)."""
+    existing_block = "\n".join(
+        f"- id: {t.id}\n  title: {t.title}\n  owner: {t.owner or 'null'}" for t in existing
+    )
+    candidates_block = "\n".join(
+        f"- candidate_index: {i}\n  title: {t.title}\n  owner: {t.owner or 'null'}"
+        for i, t in enumerate(new_tasks)
+    )
+    result = orchestrator.run_json_job(
+        "extract",
+        prompts.RECONCILE_SYSTEM,
+        prompts.reconcile_user(existing_block, candidates_block),
+        TaskMatchResult,
+    )
+    by_id = {str(t.id): t for t in existing}
+    mapping: dict[int, Task | None] = {}
+    for m in result.matches:
+        if 0 <= m.candidate_index < len(new_tasks):
+            mapping[m.candidate_index] = by_id.get(m.existing_id) if m.existing_id else None
+    return mapping
+
+
+def _apply_matches(db, meeting, new_tasks, existing, mapping: dict[int, Task | None]) -> None:
+    matched: set[int] = set()
+    known_titles = [t.title for t in existing]
+    for i, new in enumerate(new_tasks):
+        target = mapping.get(i)
+        if target is not None and id(target) not in matched:
+            matched.add(id(target))
+            if not target.edited:
+                _update_from(target, new)
+            known_titles.append(new.title)
+        elif any(_title_ratio(t, new.title) >= TITLE_MATCH_THRESHOLD for t in known_titles):
+            continue  # new/redundant but duplicates something we already have — skip
+        else:
+            db.add(_new_task(meeting.id, new))
+            known_titles.append(new.title)
+
+    for task in existing:
+        if id(task) not in matched and not task.edited:
+            db.delete(task)
+
+
+def _reconcile_by_title(db, meeting, new_tasks, existing) -> None:
+    """Deterministic fallback: fuzzy title match, preserving ids and edited rows."""
+    unmatched = set(id(t) for t in existing)
+    known_titles = [t.title for t in existing]
+
+    for new in new_tasks:
         best, best_score = None, 0.0
         for task in existing:
             if id(task) not in unmatched:
                 continue
-            score = difflib.SequenceMatcher(
-                None, task.title.lower().strip(), new.title.lower().strip()
-            ).ratio()
+            score = _title_ratio(task.title, new.title)
             if score > best_score:
                 best, best_score = task, score
 
         if best is not None and best_score >= TITLE_MATCH_THRESHOLD:
             unmatched.discard(id(best))
             if not best.edited:
-                best.title = new.title
-                best.owner = new.owner
-                best.due_date = new.due_date
-                best.priority = new.priority
-                best.dependencies = new.dependencies
-                best.source_quote = new.source_quote
+                _update_from(best, new)
+        elif any(_title_ratio(t, new.title) >= TITLE_MATCH_THRESHOLD for t in known_titles):
+            continue  # matches a task already claimed (e.g. an edited one) — skip
         else:
-            db.add(
-                Task(
-                    meeting_id=meeting.id,
-                    title=new.title,
-                    owner=new.owner,
-                    due_date=new.due_date,
-                    priority=new.priority,
-                    dependencies=new.dependencies,
-                    source_quote=new.source_quote,
-                )
-            )
+            db.add(_new_task(meeting.id, new))
+            known_titles.append(new.title)
 
     for task in existing:
         if id(task) in unmatched and not task.edited:

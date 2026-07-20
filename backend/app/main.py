@@ -10,7 +10,7 @@ from datetime import time
 from .db import Base, SessionLocal, engine
 from .migrations import run_migrations
 from .models import AvailabilityRule, Person
-from .routers import chat, meetings, people, planner, tasks
+from .routers import chat, export, meetings, people, planner, tasks
 from .services import pipeline, scheduler_jobs, storage
 
 
@@ -55,6 +55,8 @@ app.add_middleware(
     allow_origins=["http://localhost:3000"],
     allow_methods=["*"],
     allow_headers=["*"],
+    # So the browser can read the export's download filename cross-origin.
+    expose_headers=["Content-Disposition"],
 )
 
 app.include_router(meetings.router)
@@ -62,6 +64,7 @@ app.include_router(tasks.router)
 app.include_router(people.router)
 app.include_router(planner.router)
 app.include_router(chat.router)
+app.include_router(export.router)
 
 
 @app.get("/api/health")

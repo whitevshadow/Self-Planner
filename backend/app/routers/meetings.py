@@ -1,20 +1,51 @@
 import os
+import re
 import uuid
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import Response, StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from ..config import settings
 from ..db import get_db
-from ..models import Meeting, Person, Task
-from ..schemas import MeetingDetail, MeetingListItem, TaskOut
+from ..models import Meeting, Person, Segment, Task
+from ..schemas import MeetingDetail, MeetingListItem, MeetingTextIn, TaskOut
 from ..services import classifier, pipeline, storage
 
 router = APIRouter(prefix="/api/meetings", tags=["meetings"])
 
 ALLOWED_EXTENSIONS = {".mp3", ".wav", ".m4a", ".webm", ".ogg"}
 CONTENT_TYPES = {".mp3": "audio/mpeg", ".wav": "audio/wav", ".m4a": "audio/mp4", ".webm": "audio/webm", ".ogg": "audio/ogg"}
+
+# "Anish: let's ship it" → speaker "Anish". Leads with a letter so clock times
+# ("10:30") and note prefixes ("http://") don't parse as speakers; the name is
+# capped to a handful of words so mid-sentence colons don't get mistaken for one.
+_SPEAKER_PREFIX = re.compile(r"^([A-Za-z][\w.'\- ]{0,40}?):\s+(.+)$")
+
+
+def _segments_from_text(text: str) -> list[dict]:
+    """Split pasted transcript/notes into segments the pipeline can extract from.
+
+    One segment per non-blank line. A leading ``Name:`` is lifted into the
+    segment speaker so the classifier can still spot first-person assignments.
+    Timestamps are 0 — pasted text has none, and nothing downstream requires them.
+    """
+    segments: list[dict] = []
+    for line in text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        speaker = None
+        match = _SPEAKER_PREFIX.match(line)
+        if match and len(match.group(1).split()) <= 4:
+            speaker, line = match.group(1).strip(), match.group(2).strip()
+            if not line:
+                continue
+        segments.append(
+            {"idx": len(segments), "start_sec": 0.0, "end_sec": 0.0, "text": line, "speaker": speaker}
+        )
+    return segments
 
 
 @router.post("", response_model=MeetingDetail, status_code=202)
@@ -57,12 +88,44 @@ def upload_meeting(
     return _get_meeting_or_404(db, meeting_id)
 
 
+@router.post("/text", response_model=MeetingDetail, status_code=202)
+def create_from_text(body: MeetingTextIn, background: BackgroundTasks, db: Session = Depends(get_db)):
+    """Create a meeting from pasted transcript/notes — no audio, no transcription.
+
+    Returns 202 immediately; extraction → classification → triage run in the
+    background exactly as for an uploaded recording. The UI polls GET /meetings/{id}.
+    """
+    segments = _segments_from_text(body.text)
+    if not segments:
+        raise HTTPException(422, "No usable text — paste a transcript or some notes")
+
+    meeting_id = uuid.uuid4()
+    meeting = Meeting(
+        id=meeting_id,
+        title=(body.title or "").strip() or "Pasted notes",
+        filename="pasted.txt",
+        audio_key="",  # sentinel: this meeting has no audio (never re-transcribable)
+        status="done",  # transcript already exists; skip straight to extraction
+        diarize_status="skipped",
+        extract_status="running",  # hold the re-extract guard + poll immediately
+    )
+    db.add(meeting)
+    for seg in segments:
+        db.add(Segment(meeting_id=meeting_id, **seg))
+    db.commit()
+
+    background.add_task(pipeline.extract_meeting, meeting_id)
+    return _get_meeting_or_404(db, meeting_id)
+
+
 @router.post("/{meeting_id}/retranscribe", response_model=MeetingDetail, status_code=202)
 def re_transcribe(meeting_id: uuid.UUID, background: BackgroundTasks, db: Session = Depends(get_db)):
     """Full re-run from the stored audio: transcribe → diarize → extract →
     classify. Returns 202 immediately; the UI polls GET /meetings/{id}.
     Task reconciliation preserves edited tasks as usual."""
     meeting = _get_meeting_or_404(db, meeting_id)
+    if not meeting.audio_key:
+        raise HTTPException(422, "This meeting was pasted as text and has no audio to re-transcribe. Use Re-extract instead.")
     if meeting.status in ("uploaded", "transcribing") or meeting.extract_status == "running":
         raise HTTPException(409, "Meeting is already being processed")
     meeting.status = "transcribing"
@@ -157,6 +220,57 @@ def set_segment_speaker(
     return _get_meeting_or_404(db, meeting_id)
 
 
+_AUDIO_CHUNK = 256 * 1024
+
+
+@router.get("/{meeting_id}/audio")
+def stream_audio(meeting_id: uuid.UUID, request: Request, db: Session = Depends(get_db)):
+    """Stream the meeting audio with HTTP Range support so the <audio> element
+    can seek to any transcript segment. Pasted-text meetings have no audio."""
+    meeting = db.get(Meeting, meeting_id)
+    if not meeting:
+        raise HTTPException(404, "Meeting not found")
+    if not meeting.audio_key:
+        raise HTTPException(404, "This meeting has no audio")
+    try:
+        size, content_type = storage.stat_audio(meeting.audio_key)
+    except Exception:
+        raise HTTPException(404, "Audio object not found")
+
+    start, end = 0, size - 1
+    range_header = request.headers.get("range")
+    if range_header and range_header.startswith("bytes="):
+        rng = range_header.split("=", 1)[1].split(",")[0].strip()
+        s_part, _, e_part = rng.partition("-")
+        if s_part.strip():
+            start = int(s_part)
+        end = int(e_part) if e_part.strip() else size - 1
+        if start > end or start >= size:
+            return Response(status_code=416, headers={"Content-Range": f"bytes */{size}"})
+        end = min(end, size - 1)
+
+    length = end - start + 1
+
+    def body():
+        resp = storage.get_audio_stream(meeting.audio_key, offset=start, length=length)
+        try:
+            yield from resp.stream(_AUDIO_CHUNK)
+        finally:
+            resp.close()
+            resp.release_conn()
+
+    headers = {
+        "Accept-Ranges": "bytes",
+        "Content-Length": str(length),
+        "Content-Type": content_type,
+    }
+    status = 200
+    if range_header:
+        headers["Content-Range"] = f"bytes {start}-{end}/{size}"
+        status = 206
+    return StreamingResponse(body(), status_code=status, headers=headers, media_type=content_type)
+
+
 @router.get("/{meeting_id}/tasks", response_model=list[TaskOut])
 def meeting_tasks(meeting_id: uuid.UUID, db: Session = Depends(get_db)):
     meeting = _get_meeting_or_404(db, meeting_id)
@@ -184,10 +298,11 @@ def delete_meeting(meeting_id: uuid.UUID, db: Session = Depends(get_db)):
     audio_key = meeting.audio_key
     db.delete(meeting)  # cascades to segments + tasks
     db.commit()
-    try:
-        storage.delete_audio(audio_key)
-    except Exception:
-        pass  # orphan object in MinIO is harmless
+    if audio_key:  # pasted-text meetings have no audio object
+        try:
+            storage.delete_audio(audio_key)
+        except Exception:
+            pass  # orphan object in MinIO is harmless
 
 
 def _get_meeting_or_404(db: Session, meeting_id: uuid.UUID) -> Meeting:

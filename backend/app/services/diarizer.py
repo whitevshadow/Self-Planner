@@ -30,8 +30,18 @@ def _get_pipeline():
             if _pipeline is None:
                 raise RuntimeError(
                     f"Pipeline.from_pretrained returned None — accept the model terms at "
-                    f"https://huggingface.co/{settings.diarization_model}"
+                    f"https://huggingface.co/{settings.diarization_model} (and its gated "
+                    f"dependencies), then confirm HF_TOKEN can read them."
                 )
+            # pyannote on CPU is slow; move to GPU when one is available.
+            try:
+                import torch
+
+                if torch.cuda.is_available():
+                    _pipeline.to(torch.device("cuda"))
+                    logger.info("Diarization pipeline running on CUDA")
+            except Exception:
+                logger.warning("Could not move diarization pipeline to GPU; using CPU", exc_info=True)
         except Exception:
             _load_failed = True
             raise
@@ -94,11 +104,37 @@ def diarize(path: str) -> list[tuple[float, float, str]]:
 
 
 def assign_speakers(segments, turns: list[tuple[float, float, str]]) -> None:
-    """Set segment.speaker_raw to the speaker with the largest time overlap."""
+    """Label each segment with the best-matching speaker.
+
+    Primary rule: the speaker whose turns overlap the segment the most. When a
+    segment falls entirely in a gap between turns (whisper and pyannote don't cut
+    audio identically, so this is common), fall back to the nearest turn by time
+    so no line is left speaker-less — a blank speaker reads as a diarization bug.
+    """
+    if not turns:
+        return
+
     for seg in segments:
-        best_label, best_overlap = None, 0.0
+        seg_mid = (seg.start_sec + seg.end_sec) / 2
+
+        # 1. Sum overlap per speaker (a merged line can span several turns).
+        overlap_by_label: dict[str, float] = {}
         for start, end, label in turns:
             overlap = min(seg.end_sec, end) - max(seg.start_sec, start)
-            if overlap > best_overlap:
-                best_label, best_overlap = label, overlap
-        seg.speaker_raw = best_label
+            if overlap > 0:
+                overlap_by_label[label] = overlap_by_label.get(label, 0.0) + overlap
+
+        if overlap_by_label:
+            seg.speaker_raw = max(overlap_by_label, key=overlap_by_label.get)
+            continue
+
+        # 2. No overlap — attach to the turn whose span is closest in time.
+        def distance(turn: tuple[float, float, str]) -> float:
+            start, end, _ = turn
+            if seg.end_sec < start:
+                return start - seg.end_sec  # segment before the turn
+            if seg.start_sec > end:
+                return seg.start_sec - end  # segment after the turn
+            return abs(((start + end) / 2) - seg_mid)  # nested/adjacent
+
+        seg.speaker_raw = min(turns, key=distance)[2]

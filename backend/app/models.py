@@ -39,6 +39,11 @@ class Meeting(Base):
         back_populates="meeting", cascade="all, delete-orphan", order_by="Task.created_at"
     )
 
+    @property
+    def has_audio(self) -> bool:
+        # Pasted-text meetings carry no audio object (audio_key == "").
+        return bool(self.audio_key)
+
 
 class Segment(Base):
     __tablename__ = "segments"
@@ -81,6 +86,8 @@ class Task(Base):
     category: Mapped[str] = mapped_column(Text, nullable=False, default="work", server_default="work")
     estimated_minutes: Mapped[int | None] = mapped_column(Integer)
     estimate_source: Mapped[str] = mapped_column(Text, nullable=False, default="llm", server_default="llm")
+    # Energy demand: heavy | light | NULL. NULL = auto (derived from priority/estimate).
+    intensity: Mapped[str | None] = mapped_column(Text)
     steps: Mapped[list] = mapped_column(JSONB, nullable=False, default=list, server_default="[]")
     progress: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     start_date: Mapped[date | None] = mapped_column(Date)
@@ -109,6 +116,8 @@ class AvailabilityRule(Base):
     weekday: Mapped[int] = mapped_column(Integer, nullable=False)  # 0=Mon … 6=Sun
     start_t: Mapped[time] = mapped_column(Time, nullable=False)
     end_t: Mapped[time] = mapped_column(Time, nullable=False)
+    # Focus level of this window: deep (sharp hours) | shallow (low-energy time).
+    energy: Mapped[str] = mapped_column(Text, nullable=False, default="deep", server_default="deep")
 
 
 class BusyBlock(Base):
