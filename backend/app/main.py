@@ -10,7 +10,7 @@ from datetime import time
 from .db import Base, SessionLocal, engine
 from .migrations import run_migrations
 from .models import AvailabilityRule, Person
-from .routers import chat, export, meetings, people, planner, tasks
+from .routers import chat, export, meetings, people, planner, tasks, voice
 from .services import pipeline, scheduler_jobs, storage
 
 
@@ -64,6 +64,7 @@ app.include_router(tasks.router)
 app.include_router(people.router)
 app.include_router(planner.router)
 app.include_router(chat.router)
+app.include_router(voice.router)
 app.include_router(export.router)
 
 

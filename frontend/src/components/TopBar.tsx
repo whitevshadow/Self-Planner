@@ -81,11 +81,19 @@ export default function TopBar({ onMenu }: { onMenu: () => void }) {
     router.push(href);
   }
 
-  const dateLine = new Date().toLocaleDateString(undefined, {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-  });
+  // The bell reuses the search index — no extra request. It only has a count
+  // once something has loaded that index, which is fine: it is an ambient
+  // signal, not a primary control.
+  const today = new Date().toISOString().slice(0, 10);
+  const overdue = (data?.tasks ?? []).filter(
+    (t) => t.status === "open" && t.due_date != null && t.due_date < today
+  ).length;
+
+  // Load the index once on mount so the bell is accurate before the user
+  // ever opens search.
+  useEffect(() => {
+    if (!data) load();
+  }, [data, load]);
 
   return (
     <header className="appbar">
@@ -95,11 +103,26 @@ export default function TopBar({ onMenu }: { onMenu: () => void }) {
         </svg>
       </button>
       <span className="appbar-title">{pageTitle(pathname)}</span>
-      <div className="search-wrap" ref={wrapRef}>
+      <div className="appbar-spacer" />
+      <div className={`search-wrap ${q ? "typing" : ""}`} ref={wrapRef}>
+        <svg
+          className="search-icon"
+          viewBox="0 0 24 24"
+          width="15"
+          height="15"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          aria-hidden
+        >
+          <circle cx="11" cy="11" r="7" />
+          <path d="m20 20-3.5-3.5" strokeLinecap="round" />
+        </svg>
         <input
           ref={inputRef}
           className="search-pill"
-          placeholder="Search tasks & meetings…   Ctrl K"
+          placeholder="Search tasks, meetings…"
+          aria-label="Search tasks and meetings"
           value={q}
           onFocus={() => {
             if (!data) load();
@@ -147,8 +170,32 @@ export default function TopBar({ onMenu }: { onMenu: () => void }) {
             )}
           </div>
         )}
+        <span className="search-kbd" aria-hidden>
+          Ctrl K
+        </span>
       </div>
-      <span className="appbar-date">{dateLine}</span>
+      <div className="appbar-spacer" />
+      <div className="appbar-right">
+        <button
+          className="icon-btn"
+          onClick={() => router.push("/tasks")}
+          aria-label={
+            overdue === 0 ? "No overdue tasks" : `${overdue} overdue task${overdue === 1 ? "" : "s"}`
+          }
+          title={overdue === 0 ? "Nothing overdue" : `${overdue} overdue`}
+        >
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <path d="M18 8a6 6 0 1 0-12 0c0 6-2 7-2 7h16s-2-1-2-7" strokeLinejoin="round" />
+            <path d="M10.5 20a2 2 0 0 0 3 0" strokeLinecap="round" />
+          </svg>
+          {/* No badge at zero — a "0" is noise, not information. */}
+          {overdue > 0 && <span className="count-badge">{overdue > 9 ? "9+" : overdue}</span>}
+        </button>
+        <div className="appbar-me">
+          <div className="sb-avatar">AN</div>
+          <span className="name">Anish</span>
+        </div>
+      </div>
     </header>
   );
 }

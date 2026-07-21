@@ -4,67 +4,114 @@
   padding: 0;
 }
 
-/* Power-user design system — dense, monochromatic, IDE-like.
-   Neutral slate/zinc base to reduce eye strain; a single muted indigo accent
-   reserved strictly for primary actions and active/focus states. High-contrast
-   Light/Dark on the same variables. Compact spacing scale (4/8px). */
+/* Glass design system — translucent panels floating over a glowing canvas.
+   Deep near-black with a violet radial glow top-left and a teal wash
+   bottom-right; panels are low-alpha white over a 22px backdrop blur, defined
+   by hairline borders rather than fills. One saturated violet accent, split
+   into fill/text/tint tokens so every pair clears 4.5:1. Dense 4/8px spacing
+   is preserved — glass is the surface treatment, not an excuse for air. */
 :root,
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #0b0e14; /* zinc/slate canvas */
-  --glow-a: transparent; /* form over form: no decorative glow */
-  --glow-b: transparent;
-  --surface: #14181f; /* panel */
-  --surface-2: #1b212b; /* input / hover / raised */
-  --surface-solid: #14181f; /* dropdowns / popovers */
-  --row-alt: rgba(255, 255, 255, 0.022); /* zebra striping */
-  --row-hover: rgba(255, 255, 255, 0.05);
-  --border: #262d38; /* crisp hairline, not translucent */
-  --border-strong: #38414f;
-  --text: #e7ecf3; /* ~13.5:1 on --bg */
-  --text-dim: #99a3b2; /* ~6:1 */
-  --text-faint: #6b7482;
-  --accent: #7c85f0; /* muted indigo */
-  --accent-hover: #6670ec;
-  --accent-soft: rgba(124, 133, 240, 0.16);
-  --danger: #f0616d;
-  --danger-soft: rgba(240, 97, 109, 0.15);
-  --success: #46c46a;
-  --warn: #e0a635;
-  --glass-shadow: 0 1px 2px rgba(0, 0, 0, 0.4); /* flat, tight */
-  --radius: 8px;
-  --radius-sm: 6px;
+  --bg: #07070f; /* near-black; the glow does the coloring */
+  --glow-a: rgba(124, 92, 255, 0.24); /* violet, top-left */
+  --glow-b: rgba(45, 212, 191, 0.12); /* teal, bottom */
+  --glow-c: rgba(96, 84, 220, 0.19); /* indigo, upper-right */
+  /* Worst case behind a panel is --bg + the hottest point of --glow-a; every
+     contrast pair below is verified against THAT, not against flat --bg. */
+  --surface: rgba(255, 255, 255, 0.045); /* glass panel fill — thin, so the glow reads through */
+  /* 7%, not 9%: surface-2 nests inside surface, so the two alphas stack. At 9%
+     the muted text ramp fell below 4.5:1 over the glow hotspot. */
+  --surface-2: rgba(255, 255, 255, 0.05);
+  --sheen: linear-gradient(157deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0) 58%);
+  --edge-hi: inset 0 1px 0 rgba(255, 255, 255, 0.14); /* lit top edge */
+  --surface-solid: rgba(22, 23, 32, 0.86); /* dropdowns over page content */
+  --surface-opaque: #15161f; /* @supports fallback + anything that can't blur */
+  --row-hover: rgba(255, 255, 255, 0.055);
+  --border: rgba(255, 255, 255, 0.1);
+  --border-strong: rgba(255, 255, 255, 0.2);
+  --blur: 30px;
+  /* The muted ramp runs brighter than it would on an opaque panel: glass over
+     the violet hotspot lifts the backdrop, which eats contrast headroom.
+     These values are the dimmest that still clear 4.5:1 at the hotspot. */
+  --text: #eef0f7;
+  --text-dim: #bcc0d0;
+  --text-faint: #a6abbd;
+  /* The accent splits three ways because one violet cannot be both a fill
+     that carries white text AND legible text on a near-black canvas.
+     --accent  : tints, borders, dots, focus rings (never text, never fill-with-text)
+     --accent-solid: button/badge fills — white on it is 5.2:1
+     --accent-text : accent-colored TEXT on dark surfaces — 6.0:1 on --surface */
+  --accent: #7c5cff;
+  --accent-solid: #7053e5;
+  --accent-hover: #5f43d4;
+  --accent-text: #b3a2ff; /* 5.8:1 on glass at the glow hotspot */
+  --accent-soft: rgba(124, 92, 255, 0.16);
+  --on-accent: #ffffff;
+  --danger: #ff7b85;
+  --danger-soft: rgba(255, 123, 133, 0.16);
+  --success: #4fd37c;
+  --success-soft: rgba(79, 211, 124, 0.16);
+  --warn: #f0b64a;
+  --warn-soft: rgba(240, 182, 74, 0.16);
+  --glass-shadow: 0 10px 40px rgba(0, 0, 0, 0.34);
+  --accent-glow: 0 6px 20px rgba(124, 92, 255, 0.38);
+  --radius: 18px;
+  --radius-sm: 11px;
+  --radius-lg: 26px; /* sidebar + full-bleed panels */
 }
 
 :root[data-theme="light"] {
   color-scheme: light;
-  --bg: #f3f4f6; /* zinc-100 */
-  --glow-a: transparent;
-  --glow-b: transparent;
-  --surface: #ffffff;
-  --surface-2: #eceef2;
-  --surface-solid: #ffffff;
-  --row-alt: rgba(15, 20, 35, 0.025);
-  --row-hover: rgba(15, 20, 35, 0.05);
-  --border: #d7dbe1;
-  --border-strong: #b9bfc9;
-  --text: #14181f; /* ~14:1 on --bg */
-  --text-dim: #55606f;
-  --text-faint: #8a93a1;
-  --accent: #5661e0;
-  --accent-hover: #454fce;
-  --accent-soft: rgba(86, 97, 224, 0.12);
-  --danger: #d33544;
-  --danger-soft: rgba(211, 53, 68, 0.1);
-  --success: #16924a;
-  --warn: #b5790a;
-  --glass-shadow: 0 1px 2px rgba(15, 20, 35, 0.08);
-  --radius: 8px;
-  --radius-sm: 6px;
+  --bg: #eef0fb; /* pale lavender; the glow warms it toward periwinkle */
+  --glow-a: rgba(139, 124, 255, 0.3);
+  --glow-b: rgba(120, 165, 255, 0.28);
+  --glow-c: rgba(160, 150, 255, 0.22);
+  --surface: rgba(255, 255, 255, 0.55);
+  --surface-2: rgba(255, 255, 255, 0.8);
+  --sheen: linear-gradient(157deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 58%);
+  --edge-hi: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --surface-solid: rgba(255, 255, 255, 0.94);
+  --surface-opaque: #ffffff;
+  --row-hover: rgba(255, 255, 255, 0.75);
+  --border: rgba(255, 255, 255, 0.85);
+  --border-strong: rgba(23, 26, 48, 0.14);
+  --blur: 30px;
+  --text: #141631;
+  --text-dim: #4d5270;
+  --text-faint: #585e79; /* dimmest that clears 4.5:1 on the accent-soft tint */
+  /* Light theme needs no split — #6a49f2 is both 5.5:1 under white text and
+     5.5:1 as text on white. */
+  --accent: #6a49f2;
+  --accent-solid: #6a49f2;
+  --accent-hover: #5838e0;
+  --accent-text: #5836e0; /* darker than the fill: it sits on the violet tint */
+  --accent-soft: rgba(106, 73, 242, 0.12);
+  --on-accent: #ffffff;
+  --danger: #c92b3c;
+  --danger-soft: rgba(201, 43, 60, 0.12);
+  --success: #10804a;
+  --success-soft: rgba(16, 128, 74, 0.14);
+  --warn: #8f5f04;
+  --warn-soft: rgba(143, 95, 4, 0.14);
+  --glass-shadow: 0 10px 40px rgba(40, 45, 100, 0.13);
+  --accent-glow: 0 6px 20px rgba(106, 73, 242, 0.3);
+  --radius: 18px;
+  --radius-sm: 11px;
+  --radius-lg: 26px;
 }
 
 body {
   background: var(--bg);
+  /* Three sources, not two: the mid-canvas violet keeps the large empty areas
+     of a sparse dashboard from reading as flat black. Peak alpha is unchanged
+     from what the contrast audit assumed, so spreading them is free. */
+  background-image:
+    radial-gradient(90rem 60rem at 12% 0%, var(--glow-a), transparent 65%),
+    radial-gradient(70rem 55rem at 88% 12%, var(--glow-c), transparent 60%),
+    radial-gradient(80rem 60rem at 60% 100%, var(--glow-b), transparent 62%);
+  background-attachment: fixed;
+  min-height: 100vh;
   color: var(--text);
   font-family: var(--font-body, Inter), -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
   line-height: 1.45;
@@ -91,22 +138,14 @@ a {
   text-decoration: none;
 }
 
-main {
-  max-width: 1040px;
-  margin: 0 auto;
-  padding: 1.5rem 1.25rem 4rem;
-}
-
-.page-header {
+/* Let the chat page fill the entire available window */
+main:has(> .chat-box) {
+  max-width: none;
+  padding: 0;
+  flex: 1;
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  margin-bottom: 1.5rem;
-}
-
-.page-header h1 {
-  font-size: 1.4rem;
-  font-weight: 650;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .muted {
@@ -118,7 +157,7 @@ main {
 .upload-card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius);
   padding: 1.1rem;
   margin-bottom: 1.75rem;
   display: flex;
@@ -131,7 +170,7 @@ main {
   flex: 1 1 180px;
   background: var(--surface-2);
   border: 1px solid var(--border);
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
   color: var(--text);
   padding: 0.5rem 0.7rem;
   font-size: 0.9rem;
@@ -153,23 +192,23 @@ main {
   background: var(--surface-2);
   color: var(--text-dim);
   border: 1px solid var(--border);
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
   padding: 0.35rem 0.85rem;
   font-size: 0.85rem;
   font-weight: 500;
 }
 
 .upload-tabs button.active {
-  background: var(--accent);
-  color: #fff;
-  border-color: var(--accent);
+  background: var(--accent-solid);
+  color: var(--on-accent);
+  border-color: var(--accent-solid);
 }
 
 .upload-textarea {
   flex-basis: 100%;
   background: var(--surface-2);
   border: 1px solid var(--border);
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
   color: var(--text);
   padding: 0.6rem 0.7rem;
   font-size: 0.9rem;
@@ -182,7 +221,7 @@ input[type="file"]::file-selector-button {
   background: var(--surface-2);
   color: var(--text);
   border: 1px solid var(--border);
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
   padding: 0.45rem 0.9rem;
   font-size: 0.85rem;
   cursor: pointer;
@@ -194,10 +233,10 @@ input[type="file"]::file-selector-button:hover {
 }
 
 button {
-  background: var(--accent);
+  background: var(--accent-solid);
   color: #fff;
   border: none;
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
   padding: 0.5rem 1rem;
   font-size: 0.9rem;
   font-weight: 550;
@@ -211,6 +250,52 @@ button:hover:not(:disabled) {
 button:disabled {
   opacity: 0.55;
   cursor: not-allowed;
+}
+
+/* Primary / secondary pill variants. Primary is a FLAT accent fill — this is
+   app UI, and a gradient here would be decoration, not hierarchy. */
+button.btn-primary,
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: var(--accent-solid);
+  color: var(--on-accent);
+  border: 1px solid var(--accent-solid);
+  border-radius: 999px;
+  padding: 0.5rem 1.05rem;
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+  min-height: 38px;
+  box-shadow: var(--accent-glow);
+}
+
+button.btn-primary:hover:not(:disabled),
+.btn-primary:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+button.btn-secondary,
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  padding: 0.5rem 1.05rem;
+  font-size: 0.86rem;
+  font-weight: 550;
+  cursor: pointer;
+  min-height: 38px;
+}
+
+button.btn-secondary:hover:not(:disabled),
+.btn-secondary:hover {
+  background: var(--surface-2);
 }
 
 button.ghost-danger {
@@ -266,7 +351,8 @@ button.ghost-danger:hover {
 .progress-track {
   flex: 1;
   height: 6px;
-  background: var(--border);
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
   border-radius: 3px;
   overflow: hidden;
 }
@@ -346,7 +432,8 @@ button.ghost-danger:hover {
 }
 
 .notes-body.markdown code {
-  background: var(--border);
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
   border-radius: 3px;
   padding: 0.05rem 0.3rem;
   font-size: 0.8em;
@@ -356,7 +443,7 @@ button.ghost-danger:hover {
 .record-card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius);
   padding: 1.1rem;
   margin-bottom: 1rem;
   display: flex;
@@ -382,7 +469,7 @@ button.ghost-danger:hover {
   flex: 1 1 180px;
   background: var(--surface-2);
   border: 1px solid var(--border);
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
   color: var(--text);
   padding: 0.5rem 0.7rem;
   font-size: 0.9rem;
@@ -407,7 +494,7 @@ button.ghost-danger:hover {
   background: rgba(255, 107, 107, 0.15);
   color: var(--danger);
   border: 1px solid var(--danger);
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
   padding: 0.5rem 1rem;
   font-size: 0.9rem;
   font-weight: 600;
@@ -424,7 +511,7 @@ button.ghost-danger:hover {
   background: var(--danger);
   color: #fff;
   border: none;
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
   padding: 0.5rem 1rem;
   font-size: 0.9rem;
   font-weight: 600;
@@ -440,7 +527,7 @@ button.ghost-danger:hover {
 .rec-step-guide {
   background: rgba(124, 92, 255, 0.07);
   border: 1px solid rgba(124, 92, 255, 0.28);
-  border-radius: 9px;
+  border-radius: var(--radius);
   padding: 0.85rem 1rem;
   display: flex;
   flex-direction: column;
@@ -464,7 +551,7 @@ button.ghost-danger:hover {
 
 .rec-step-pill.active {
   background: rgba(124, 92, 255, 0.25);
-  color: var(--accent);
+  color: var(--accent-text);
   border: 1px solid var(--accent);
 }
 
@@ -504,7 +591,7 @@ button.ghost-danger:hover {
 .rec-diagram-box {
   background: var(--surface-2);
   border: 1px solid var(--border);
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
   padding: 0.35rem 0.65rem;
   font-size: 0.75rem;
   line-height: 1.35;
@@ -551,7 +638,7 @@ button.ghost-danger:hover {
   gap: 0.55rem;
   background: rgba(255, 107, 107, 0.08);
   border: 1px solid rgba(255, 107, 107, 0.35);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   padding: 0.45rem 0.85rem;
 }
 
@@ -593,7 +680,7 @@ button.ghost-danger:hover {
 
 .rec-source-badge.mic {
   background: rgba(124, 92, 255, 0.15);
-  color: var(--accent);
+  color: var(--accent-text);
   border: 1px solid rgba(124, 92, 255, 0.35);
 }
 
@@ -621,7 +708,7 @@ button.ghost-danger:hover {
 .meeting-card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius);
   padding: 0.9rem 1.1rem;
   display: flex;
   align-items: center;
@@ -679,18 +766,26 @@ button.ghost-danger:hover {
 }
 
 /* Transcript */
+/* Own scroll port — the transcript alone ran ~7,000px and buried the tasks
+   table above it. */
 .transcript {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
-  margin-top: 1.25rem;
+  max-height: 60vh;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 0.6rem;
+  margin-top: 0.75rem;
 }
 
 .segment {
   display: flex;
   gap: 0.9rem;
   padding: 0.45rem 0.75rem;
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
 }
 
 .segment:hover {
@@ -698,7 +793,7 @@ button.ghost-danger:hover {
 }
 
 .segment .ts {
-  color: var(--accent);
+  color: var(--accent-text);
   font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
   font-size: 0.8rem;
   padding-top: 0.15rem;
@@ -727,7 +822,7 @@ button.ghost-danger:hover {
 
 .energy-badge.deep {
   background: color-mix(in srgb, var(--accent) 16%, transparent);
-  color: var(--accent);
+  color: var(--accent-text);
   border-color: color-mix(in srgb, var(--accent) 40%, transparent);
 }
 
@@ -739,7 +834,7 @@ button.ghost-danger:hover {
 .backup-pre {
   background: var(--surface-2);
   border: 1px solid var(--border);
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
   padding: 0.7rem 0.85rem;
   font-family: ui-monospace, Consolas, monospace;
   font-size: 0.8rem;
@@ -752,7 +847,7 @@ button.ghost-danger:hover {
 button.ts-play {
   background: transparent;
   border: none;
-  color: var(--accent);
+  color: var(--accent-text);
   font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
   font-size: 0.8rem;
   padding: 0.15rem 0.2rem 0 0;
@@ -770,7 +865,7 @@ button.ts-play:hover {
 .error-banner {
   background: rgba(255, 107, 107, 0.12);
   border: 1px solid var(--danger);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   padding: 0.8rem 1rem;
   color: var(--danger);
   font-size: 0.9rem;
@@ -797,7 +892,7 @@ button.ts-play:hover {
 .summary-card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius);
   padding: 1.1rem 1.25rem;
   margin-top: 1.25rem;
 }
@@ -832,7 +927,16 @@ button.ts-play:hover {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin: 1.75rem 0 0.75rem;
+  margin: 2rem 0 0.75rem;
+  padding-top: 1.1rem;
+  border-top: 1px solid var(--border);
+}
+
+/* Inside a card the heading is already framed — no divider, no extra lead. */
+.summary-card .section-header,
+.today-col .section-header {
+  padding-top: 0;
+  border-top: none;
 }
 
 .section-header h2 {
@@ -844,7 +948,7 @@ button.ts-play:hover {
   overflow-x: auto;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius);
 }
 
 .task-table {
@@ -876,11 +980,8 @@ button.ts-play:hover {
   vertical-align: top;
 }
 
-/* Zebra striping for readability across wide rows */
-.task-table tbody tr:nth-child(even) {
-  background: var(--row-alt);
-}
-
+/* No zebra striping — the hairline row borders already separate rows, and
+   striping fights them. Hover is the only row-level background. */
 .task-table tbody tr:hover {
   background: var(--row-hover);
 }
@@ -913,7 +1014,7 @@ button.ts-play:hover {
 }
 
 .task-title-cell {
-  min-width: 220px;
+  min-width: 200px;
 }
 
 .quote {
@@ -953,7 +1054,7 @@ button.ts-play:hover {
 .cell-input {
   background: var(--surface-2);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   color: var(--text);
   padding: 0.25rem 0.4rem;
   font-size: 0.85rem;
@@ -961,7 +1062,7 @@ button.ts-play:hover {
 }
 
 .meeting-link {
-  color: var(--accent);
+  color: var(--accent-text);
   font-size: 0.82rem;
 }
 
@@ -973,7 +1074,7 @@ button.ts-play:hover {
   flex-wrap: wrap;
   background: var(--accent-soft);
   border: 1px solid var(--accent);
-  border-radius: 10px;
+  border-radius: var(--radius);
   padding: 0.6rem 0.9rem;
   margin-bottom: 0.8rem;
   font-size: 0.88rem;
@@ -1007,80 +1108,7 @@ button.ghost:hover:not(:disabled) {
 .est-cell {
   white-space: nowrap;
   color: var(--text-dim);
-  font-variant-numeric: tabular-nums;
-}
-
-/* Filters (tasks page) */
-.filters {
-  display: flex;
-  gap: 0.6rem;
-  margin-bottom: 1rem;
-}
-
-.filters input,
-.filters select {
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  color: var(--text);
-  padding: 0.45rem 0.65rem;
-  font-size: 0.88rem;
-}
-
-/* Top navigation bar (shared across all pages) */
-.topbar {
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(8px);
-  border-bottom: 1px solid var(--border);
-}
-
-.topbar-inner {
-  max-width: 1040px;
-  margin: 0 auto;
-  padding: 0.65rem 1.25rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  flex-wrap: wrap;
-}
-
-.brand {
-  font-weight: 700;
-  font-size: 0.95rem;
-  letter-spacing: 0.01em;
-  color: var(--text);
-}
-
-.brand:hover {
-  color: var(--accent-hover);
-}
-
-.nav-links {
-  display: flex;
-  gap: 0.25rem;
-  font-size: 0.85rem;
-  flex-wrap: wrap;
-}
-
-.nav-links a {
-  color: var(--text-dim);
-  padding: 0.3rem 0.6rem;
-  border-radius: 6px;
-}
-
-.nav-links a:hover {
-  color: var(--text);
-  background: var(--surface-2);
-}
-
-.nav-links a.active {
-  color: var(--text);
-  background: var(--surface-2);
-  font-weight: 600;
+  text-align: right;
 }
 
 /* Phase 3: My Tasks dashboard */
@@ -1105,7 +1133,7 @@ button.ghost:hover:not(:disabled) {
   gap: 0.8rem;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 9px;
+  border-radius: var(--radius);
   padding: 0.7rem 1rem;
 }
 
@@ -1128,6 +1156,10 @@ button.ghost:hover:not(:disabled) {
 .mytask .title {
   font-weight: 550;
   font-size: 0.93rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
 }
 
 .mytask .title.strike {
@@ -1150,13 +1182,14 @@ button.ghost:hover:not(:disabled) {
   border-bottom: 1px dotted var(--text-dim);
 }
 
+/* Badges are single units — never let "AT RISK" break across two lines. */
 .prio {
   font-size: 0.68rem;
   font-weight: 700;
   text-transform: uppercase;
   border-radius: 999px;
   padding: 0.1rem 0.5rem;
-  margin-left: 0.5rem;
+  white-space: nowrap;
 }
 
 .prio.high {
@@ -1178,7 +1211,7 @@ button.ghost:hover:not(:disabled) {
 .inbox {
   background: rgba(255, 176, 32, 0.07);
   border: 1px solid var(--warn);
-  border-radius: 10px;
+  border-radius: var(--radius);
   padding: 1rem 1.2rem;
   margin-bottom: 1.5rem;
 }
@@ -1190,7 +1223,7 @@ button.ghost:hover:not(:disabled) {
 
 .inbox-count {
   background: var(--warn);
-  color: #ffffff;
+  color: var(--on-accent);
   border-radius: 999px;
   font-size: 0.72rem;
   padding: 0.05rem 0.5rem;
@@ -1204,7 +1237,7 @@ button.ghost:hover:not(:disabled) {
   padding: 0.7rem;
   border-top: 1px solid var(--border);
   margin-top: 0.7rem;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   border-left: 3px solid transparent;
   transition: background 0.12s, border-left-color 0.12s;
 }
@@ -1279,7 +1312,7 @@ kbd {
 .speaker-bar {
   background: var(--surface);
   border: 1px solid var(--accent);
-  border-radius: 10px;
+  border-radius: var(--radius);
   padding: 1rem 1.2rem;
   margin-top: 1.25rem;
 }
@@ -1331,7 +1364,7 @@ kbd {
 .notice-banner {
   background: rgba(124, 92, 255, 0.08);
   border: 1px solid var(--accent);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   padding: 0.7rem 1rem;
   font-size: 0.88rem;
   margin-top: 1rem;
@@ -1380,7 +1413,7 @@ kbd {
 .today-col {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius);
   padding: 1rem 1.1rem;
   position: sticky;
   top: 1rem;
@@ -1394,7 +1427,7 @@ kbd {
 .now-card {
   background: var(--surface-2);
   border: 1px solid var(--border);
-  border-radius: 9px;
+  border-radius: var(--radius);
   padding: 0.7rem 0.8rem;
   margin-bottom: 0.8rem;
 }
@@ -1440,7 +1473,7 @@ kbd {
   font-family: ui-monospace, Consolas, monospace;
   letter-spacing: 0;
   text-transform: none;
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 .now-title {
@@ -1481,7 +1514,7 @@ kbd {
   gap: 0.35rem;
   background: var(--surface-2);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   padding: 0.55rem 0.7rem;
 }
 
@@ -1514,7 +1547,7 @@ kbd {
 .block-time {
   font-family: ui-monospace, Consolas, monospace;
   font-size: 0.75rem;
-  color: var(--accent);
+  color: var(--accent-text);
   flex-shrink: 0;
 }
 
@@ -1557,84 +1590,343 @@ button.mini.ghost {
   font-size: 0.78rem;
   color: var(--warn);
   background: rgba(255, 176, 32, 0.08);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   padding: 0.35rem 0.6rem;
 }
 
-/* Chat */
+/* Chat — ChatGPT-style conversation */
+.new-chat-btn {
+  white-space: nowrap;
+  font-weight: 550;
+}
+
+.chat-topbar {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.chat-topbar-title {
+  font-size: 1.15rem;
+  font-weight: 650;
+  margin-right: auto;
+}
+
+/* Push the muted text and new-chat button to the right */
+.chat-topbar .muted {
+  margin-left: auto;
+}
+
 .chat-box {
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border: none;
+  border-radius: 0;
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 150px);
-  min-height: 400px;
-  /* Constrain the conversation to an optimal reading measure */
-  max-width: 760px;
-  margin: 0 auto;
+  flex: 1;
+  min-height: 0;
+  max-width: none;
+  margin: 0;
   width: 100%;
+  overflow: hidden;
+}
+
+/* Empty (new-chat) state: the scroll area owns the free height and centres
+   the welcome inside it, so the composer stays pinned to the bottom. */
+.chat-box.empty .chat-scroll {
+  flex: 1;
+  justify-content: center;
+  padding: 1.25rem;
 }
 
 .chat-scroll {
   flex: 1;
   overflow-y: auto;
-  padding: 1rem;
+  padding: 1.25rem 1.25rem 0.5rem;
   display: flex;
   flex-direction: column;
-  gap: 0.55rem;
+  gap: 0.9rem;
+  scroll-behavior: smooth;
+}
+
+/* A row pairs an avatar with a message; user rows sit on the right. */
+.chat-row {
+  display: flex;
+  gap: 0.65rem;
+  align-items: flex-start;
+  max-width: 100%;
+}
+
+.chat-row.user {
+  justify-content: flex-end;
+}
+
+.chat-avatar {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #fff;
+  background: var(--accent-solid);
+  margin-top: 2px;
 }
 
 .chat-msg {
-  max-width: 78%;
-  padding: 0.55rem 0.85rem;
-  border-radius: 12px;
+  padding: 0.6rem 0.9rem;
+  border-radius: var(--radius);
   font-size: 0.9rem;
-  line-height: 1.45;
+  line-height: 1.5;
+  word-break: break-word;
 }
 
-.chat-msg.user {
-  align-self: flex-end;
-  background: var(--accent);
-  color: #fff;
+.chat-row.user .chat-msg {
+  max-width: 80%;
+  background: var(--accent-solid);
+  color: var(--on-accent);
   border-bottom-right-radius: 4px;
 }
 
-.chat-msg.assistant {
-  align-self: flex-start;
+.chat-row.assistant .chat-msg {
+  max-width: calc(100% - 40px);
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-bottom-left-radius: 4px;
 }
 
+/* Typing indicator (three bouncing dots) */
+.chat-msg.typing {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  padding: 0.75rem 0.9rem;
+}
+
+.typing-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  animation: chat-typing 1.2s infinite ease-in-out;
+}
+
+.typing-dot:nth-child(2) {
+  animation-delay: 0.18s;
+}
+
+.typing-dot:nth-child(3) {
+  animation-delay: 0.36s;
+}
+
+@keyframes chat-typing {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.45; }
+  30% { transform: translateY(-4px); opacity: 1; }
+}
+
+/* Tool-call chip — a subtle centered status line between messages. */
 .chat-tool {
   align-self: center;
-  font-size: 0.72rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.74rem;
   color: var(--text-dim);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.2rem 0.7rem;
   cursor: help;
 }
 
+.chat-tool-check {
+  color: #3fb950;
+  font-weight: 700;
+}
+
+/* Empty state / welcome screen */
+.chat-welcome {
+  margin: auto;
+  text-align: center;
+  padding: 1.5rem 1rem;
+  max-width: 520px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.chat-welcome-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--on-accent);
+  background: var(--accent-solid);
+  margin-bottom: 0.35rem;
+}
+
+.chat-welcome h2 {
+  font-size: 1.25rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.chat-suggestions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+  margin-top: 1rem;
+  width: 100%;
+}
+
+.chat-suggestion {
+  text-align: left;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  padding: 0.65rem 0.8rem;
+  font-size: 0.82rem;
+  line-height: 1.35;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s, transform 0.12s;
+}
+
+.chat-suggestion:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  background: var(--surface);
+  transform: translateY(-1px);
+}
+
+.chat-suggestion:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Composer — pill container with attach + auto-growing textarea + send */
 .chat-input {
   display: flex;
   gap: 0.5rem;
-  padding: 0.7rem;
+  align-items: flex-end;
+  padding: 0.7rem 0.9rem 0.9rem;
   border-top: 1px solid var(--border);
+  width: 100%;
+  max-width: 860px;
+  margin-inline: auto;
 }
 
-.chat-input input[type="text"] {
+.chat-input textarea {
   flex: 1;
+  resize: none;
+  max-height: 200px;
   background: var(--surface-2);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius);
   color: var(--text);
-  padding: 0.55rem 0.8rem;
+  padding: 0.6rem 0.85rem;
+  font: inherit;
   font-size: 0.9rem;
+  line-height: 1.45;
+  overflow-y: auto;
+}
+
+.chat-input textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.chat-attach,
+.chat-mic,
+.chat-send {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 1rem;
+  cursor: pointer;
+  border: 1px solid var(--border);
+}
+
+.chat-mic {
+  background: var(--surface-2);
+  color: var(--text-dim);
+}
+
+.chat-mic:hover:not(:disabled) {
+  border-color: var(--border-strong);
+}
+
+.chat-mic:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* Recording: pulsing red so it's obvious the mic is live. */
+.chat-mic.recording {
+  background: #ef4444;
+  border-color: #ef4444;
+  color: #fff;
+  animation: mic-pulse 1.2s ease-in-out infinite;
+}
+
+/* Speaking: assistant is talking; the button becomes a stop control. */
+.chat-mic.speaking {
+  background: var(--accent-solid);
+  border-color: var(--accent-solid);
+  color: var(--on-accent);
+}
+
+@keyframes mic-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5); }
+  50% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+}
+
+.chat-attach {
+  background: var(--surface-2);
+  color: var(--text-dim);
+}
+
+.chat-attach:hover:not(:disabled) {
+  border-color: var(--border-strong);
+}
+
+.chat-send {
+  background: var(--accent-solid);
+  color: var(--on-accent);
+  border-color: var(--accent-solid);
+  font-weight: 700;
+}
+
+.chat-send:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.chat-send:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+@media (max-width: 560px) {
+  .chat-suggestions {
+    grid-template-columns: 1fr;
+  }
 }
 
 .tt-preview {
   background: var(--surface-2);
   border: 1px solid var(--accent);
-  border-radius: 10px;
+  border-radius: var(--radius);
   padding: 0.9rem 1rem;
 }
 
@@ -1644,12 +1936,14 @@ button.mini.ghost {
 }
 
 /* Gantt */
+/* frappe-gantt scrolls inside .gantt-container, so this wrapper must not also
+   scroll — a second scroller clips the bar labels at the left edge. */
 .gantt-wrap {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  overflow-x: auto;
-  padding: 0.5rem;
+  border-radius: var(--radius);
+  overflow: hidden;
+  padding: 0;
 }
 
 .gantt-wrap .gantt-risk .bar {
@@ -1658,7 +1952,9 @@ button.mini.ghost {
 
 /* Dashboard hello hero */
 .hello-hero {
-  margin: 0.5rem 0 1.5rem;
+  margin: 0 0 1.5rem;
+  padding-bottom: 0.9rem;
+  border-bottom: 1px solid var(--border);
 }
 
 .hello-hero h1 {
@@ -1678,7 +1974,7 @@ button.mini.ghost {
 .hp-section {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius);
   padding: 1rem 1.2rem;
   margin-bottom: 1.5rem;
   box-shadow: 0 0.8px 2.9px rgba(0, 0, 0, 0.02), 0 4px 18px rgba(0, 0, 0, 0.04);
@@ -1700,7 +1996,7 @@ button.mini.ghost {
 .mini-cal {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius);
   padding: 0.9rem 1rem 1rem;
   margin-bottom: 1rem;
 }
@@ -1721,7 +2017,7 @@ button.mini.ghost {
   background: transparent;
   color: var(--text-dim);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   padding: 0.1rem 0.5rem;
   font-size: 0.85rem;
 }
@@ -1751,17 +2047,20 @@ button.mini.ghost {
   position: relative;
   font-size: 0.8rem;
   padding: 0.32rem 0;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   color: var(--text);
 }
 
+/* Was `color: var(--border)` — fine when --border was a grey hairline, but it
+   is now a white glass edge, which rendered these invisible in light mode. */
 .mini-cal-day.other-month {
-  color: var(--border);
+  color: var(--text-faint);
+  opacity: 0.45;
 }
 
 .mini-cal-day.today {
-  background: var(--accent);
-  color: #fff;
+  background: var(--accent-solid);
+  color: var(--on-accent);
   font-weight: 700;
 }
 
@@ -1782,45 +2081,109 @@ button.mini.ghost {
 
 /* ─── App shell ──────────────────────────────────────────────────── */
 
-/* Crisp, flat panels — one place, all pages. No blur, tight shadow, thin
-   borders: density and legibility over decoration. */
+/* Glass panels — one place, all pages. Low-alpha fill over a backdrop blur,
+   defined by the hairline border rather than by the fill. */
 .upload-card,
 .record-card,
 .meeting-card,
 .summary-card,
 .task-table-wrap,
 .today-col,
-.chat-box,
 .mini-cal,
 .hp-section,
 .inbox,
 .speaker-bar,
 .gantt-wrap,
 .tt-preview,
-.rec-step-guide {
+.new-meeting,
+.transcript,
+.rec-step-guide,
+.mytask,
+.now-card,
+.block,
+.empty-state,
+.error-banner,
+.notice-banner,
+.bulk-bar,
+.chat-suggestion,
+.search-pop {
   border-radius: var(--radius);
-  box-shadow: var(--glass-shadow);
-  transition: border-color 0.12s ease;
+  /* The sheen is what makes it read as a pane of glass rather than a flat
+     translucent rectangle: a light source falling across the top-left, plus a
+     lit top edge. Both are inside the panel, so neither affects text contrast
+     against the backdrop. */
+  background-image: var(--sheen);
+  box-shadow: var(--glass-shadow), var(--edge-hi);
+  backdrop-filter: blur(var(--blur)) saturate(165%);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(165%);
+  transition: border-color 0.12s ease, transform 0.12s ease;
+}
+
+/* Hover lifts the border, not the fill — cheap, and it keeps text contrast
+   identical between rest and hover. */
+.meeting-card:hover,
+.mytask:hover {
+  border-color: var(--border-strong);
+}
+
+/* No backdrop-filter (older Firefox, forced-colors): fall back to an opaque
+   panel so text never lands on a live gradient. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .upload-card,
+  .record-card,
+  .meeting-card,
+  .summary-card,
+  .task-table-wrap,
+  .today-col,
+  .mini-cal,
+  .hp-section,
+  .inbox,
+  .speaker-bar,
+  .gantt-wrap,
+  .tt-preview,
+  .new-meeting,
+  .transcript,
+  .rec-step-guide,
+  .mytask,
+  .now-card,
+  .block,
+  .bulk-bar,
+  .sidebar,
+  .appbar,
+  .glass-drawer,
+  .search-pop {
+    background: var(--surface-opaque);
+  }
 }
 
 .shell {
   display: flex;
   min-height: 100vh;
+  gap: 10px;
+  padding: 10px;
 }
 
+/* Inset floating panel rather than a flush column — the canvas glow reads
+   around it, which is what makes the shell feel like a workspace. */
 .sidebar {
-  width: 216px;
+  width: 240px;
   flex-shrink: 0;
   position: sticky;
-  top: 0;
-  height: 100vh;
+  top: 10px;
+  height: calc(100vh - 20px);
   padding: 14px 10px;
   background: var(--surface);
-  border-right: 1px solid var(--border);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background-image: var(--sheen);
+  box-shadow: var(--glass-shadow), var(--edge-hi);
+  backdrop-filter: blur(var(--blur)) saturate(165%);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(165%);
   display: flex;
   flex-direction: column;
   gap: 1px;
   overflow-y: auto;
+  transition: width 0.16s ease;
 }
 
 .sb-logo {
@@ -1830,11 +2193,95 @@ button.mini.ghost {
   padding: 6px 10px 20px;
 }
 
+/* Collapsed rail: icons only. Labels are removed from the accessibility tree
+   visually but every row keeps an aria-label, so screen readers are unaffected. */
+.sb-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sb-head .sb-logo {
+  flex: 1;
+  min-width: 0;
+}
+
+.sb-collapse {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-faint);
+  border-radius: var(--radius-sm);
+  padding: 6px;
+  margin-bottom: 14px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.sb-collapse:hover:not(:disabled) {
+  background: var(--surface-2);
+  color: var(--text);
+  border-color: var(--border);
+}
+
+.shell[data-collapsed="true"] .sidebar {
+  width: 64px;
+}
+
+/* :not(.sb-logo-mark) / :not(.sb-avatar) matter — both are plain divs and
+   direct children, so a bare `> div` rule hides the icons themselves. */
+.shell[data-collapsed="true"] .sb-label,
+.shell[data-collapsed="true"] .sb-eyebrow,
+.shell[data-collapsed="true"] .sb-logo > div:not(.sb-logo-mark),
+.shell[data-collapsed="true"] .sb-user > div:not(.sb-avatar),
+.shell[data-collapsed="true"] .theme-toggle span {
+  display: none;
+}
+
+.shell[data-collapsed="true"] .sb-user {
+  padding: 6px;
+  border: none;
+  background: transparent;
+}
+
+.shell[data-collapsed="true"] .sb-head {
+  flex-direction: column;
+  gap: 8px;
+}
+
+.shell[data-collapsed="true"] .sb-logo {
+  padding: 6px 0 4px;
+  justify-content: center;
+}
+
+.shell[data-collapsed="true"] .sb-eyebrow-rule {
+  display: block;
+  height: 1px;
+  background: var(--border);
+  margin: 12px 6px 6px;
+}
+
+.shell[data-collapsed="true"] .sb-row,
+.shell[data-collapsed="true"] .theme-toggle,
+.shell[data-collapsed="true"] .sb-user {
+  justify-content: center;
+  padding-inline: 0;
+}
+
+.shell[data-collapsed="true"] .sb-row.active::after {
+  display: none;
+}
+
+.sb-eyebrow-rule {
+  display: none;
+}
+
 .sb-logo-mark {
   width: 34px;
   height: 34px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, var(--accent), #4f46e5);
+  border-radius: var(--radius);
+  background: var(--accent-solid);
   display: grid;
   place-items: center;
   font-weight: 800;
@@ -1849,10 +2296,11 @@ button.mini.ghost {
 }
 
 .sb-logo-sub {
-  font-size: 0.6rem;
-  letter-spacing: 0.14em;
+  font-size: 0.56rem;
+  letter-spacing: 0.12em;
   color: var(--text-faint);
   text-transform: uppercase;
+  white-space: nowrap; /* two-line tagline read as a layout bug */
 }
 
 .sb-eyebrow {
@@ -1869,10 +2317,11 @@ button.mini.ghost {
   align-items: center;
   gap: 9px;
   padding: 6px 9px;
+  border: 1px solid transparent; /* reserved so :active doesn't shift layout */
   border-radius: var(--radius-sm);
   font-size: 0.82rem;
   color: var(--text-dim);
-  min-height: 30px;
+  min-height: 32px;
 }
 
 .sb-row:hover {
@@ -1880,11 +2329,28 @@ button.mini.ghost {
   color: var(--text);
 }
 
+/* Active row is a bordered, tinted rect with a trailing dot — the border is
+   what separates "you are here" from the cheaper hover fill. */
 .sb-row.active {
   background: var(--accent-soft);
   color: var(--text);
-  box-shadow: inset 2px 0 0 var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
   font-weight: 600;
+}
+
+.sb-row.active::after {
+  content: "";
+  margin-left: auto;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+}
+
+.sb-row.active svg {
+  color: var(--accent-text);
+  opacity: 1;
 }
 
 .sb-row svg {
@@ -1907,7 +2373,7 @@ button.mini.ghost {
   align-items: center;
   gap: 10px;
   padding: 9px 10px;
-  border-radius: 9px;
+  border-radius: var(--radius);
   font-size: 0.82rem;
   color: var(--text-dim);
   background: transparent;
@@ -1917,7 +2383,14 @@ button.mini.ghost {
   min-height: 38px;
 }
 
-.theme-toggle:hover {
+/* Must out-specify `button:hover:not(:disabled)` (0,2,1) or the base accent
+   fill wins and this transparent row turns into a solid violet button. */
+button.theme-toggle:hover:not(:disabled) {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+button.hamburger:hover:not(:disabled) {
   background: var(--surface-2);
   color: var(--text);
 }
@@ -1927,7 +2400,7 @@ button.mini.ghost {
   gap: 10px;
   align-items: center;
   padding: 10px;
-  border-radius: 12px;
+  border-radius: var(--radius);
   background: var(--surface);
   border: 1px solid var(--border);
 }
@@ -1936,12 +2409,12 @@ button.mini.ghost {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent), #c084fc);
+  background: var(--accent-solid);
   display: grid;
   place-items: center;
   font-size: 0.72rem;
   font-weight: 700;
-  color: #fff;
+  color: var(--on-accent);
   flex-shrink: 0;
 }
 
@@ -1953,6 +2426,22 @@ button.mini.ghost {
 .sb-user-sub {
   font-size: 0.64rem;
   color: var(--text-faint);
+}
+
+/* Role chip — mirrors the reference's ORG ADMIN badge. Text is --text, not
+   violet-on-violet, so it clears 4.5:1 in both themes. */
+.sb-role {
+  display: inline-block;
+  margin-top: 3px;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text);
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  border-radius: 999px;
+  padding: 1px 7px;
 }
 
 /* Content column + top bar */
@@ -1967,12 +2456,19 @@ button.mini.ghost {
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 12px 28px;
-  border-bottom: 1px solid var(--border);
+  padding: 10px 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
   position: sticky;
   top: 0;
   z-index: 90;
   background: var(--surface);
+  background-image: var(--sheen);
+  box-shadow: var(--glass-shadow), var(--edge-hi);
+  backdrop-filter: blur(var(--blur)) saturate(165%);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(165%);
+  margin-bottom: 10px;
+  flex-shrink: 0;
 }
 
 .appbar-title {
@@ -1981,10 +2477,67 @@ button.mini.ghost {
   white-space: nowrap;
 }
 
-.appbar-date {
-  margin-left: auto;
-  font-size: 0.78rem;
-  color: var(--text-faint);
+/* Search sits centered between two spacers; the right cluster is pinned. */
+.appbar-spacer {
+  flex: 1;
+}
+
+.appbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.icon-btn {
+  position: relative;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  border-radius: var(--radius-sm);
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  cursor: pointer;
+}
+
+.icon-btn:hover:not(:disabled) {
+  background: var(--surface-2);
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+/* Overdue count. Absent entirely at zero — a "0" badge is noise. */
+.icon-btn .count-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 17px;
+  text-align: center;
+  border: 2px solid var(--surface);
+  box-sizing: content-box;
+}
+
+.appbar-me {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 4px;
+}
+
+.appbar-me .name {
+  font-size: 0.8rem;
+  font-weight: 600;
   white-space: nowrap;
 }
 
@@ -1993,7 +2546,7 @@ button.mini.ghost {
   background: transparent;
   border: 1px solid var(--border);
   color: var(--text);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   padding: 0.45rem 0.6rem;
   min-width: 44px;
   min-height: 40px;
@@ -2003,7 +2556,7 @@ main {
   max-width: 1320px;
   width: 100%;
   margin: 0 auto;
-  padding: 1.1rem 1.5rem 3rem;
+  padding: 0.4rem 1rem 3rem;
 }
 
 /* Entrance motion — once per navigation */
@@ -2036,25 +2589,56 @@ button:not(:disabled):active {
   }
 }
 
-/* ⌘K search */
+/* ⌘K search — centered pill with a real key chip instead of a placeholder hint */
 .search-wrap {
   position: relative;
-  flex: 1;
-  max-width: 420px;
+  width: 100%;
+  max-width: 460px;
+  flex-shrink: 1;
 }
 
 .search-pill {
   width: 100%;
-  padding: 8px 14px;
+  padding: 8px 56px 8px 36px;
   border-radius: 999px;
-  background: var(--surface);
+  background: var(--surface-2);
   border: 1px solid var(--border);
   color: var(--text);
   font-size: 0.8rem;
+  min-height: 36px;
 }
 
 .search-pill::placeholder {
   color: var(--text-faint);
+}
+
+.search-icon {
+  position: absolute;
+  left: 13px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-faint);
+  pointer-events: none;
+}
+
+.search-kbd {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  font-size: 0.65rem;
+  color: var(--text-faint);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 5px;
+  padding: 2px 6px;
+  font-family: var(--font-mono);
+}
+
+/* The chip is decorative once you are typing — it would sit on top of text. */
+.search-wrap.typing .search-kbd {
+  display: none;
 }
 
 .search-pop {
@@ -2064,8 +2648,10 @@ button:not(:disabled):active {
   right: 0;
   background: var(--surface-solid);
   border: 1px solid var(--border-strong);
-  border-radius: 12px;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+  border-radius: var(--radius);
+  backdrop-filter: blur(var(--blur)) saturate(165%);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(165%);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45), var(--edge-hi);
   padding: 6px;
   z-index: 200;
   max-height: 380px;
@@ -2084,7 +2670,7 @@ button:not(:disabled):active {
 .search-item {
   display: block;
   padding: 8px 10px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   font-size: 0.84rem;
   color: var(--text);
 }
@@ -2116,17 +2702,53 @@ button:not(:disabled):active {
     display: none;
   }
 
+  .shell {
+    padding: 8px;
+    gap: 0;
+  }
+
   .hamburger {
     display: grid;
     place-items: center;
   }
 
   .appbar {
-    padding: 10px 14px;
+    padding: 8px 10px;
+    gap: 8px;
+  }
+
+  /* The page title is already in the drawer nav and the h1 below; at this
+     width the search field is worth more than a duplicate label. */
+  .appbar-title,
+  .appbar-spacer {
+    display: none;
+  }
+
+  .search-wrap {
+    max-width: none;
+  }
+
+  .search-kbd {
+    display: none; /* no ⌘K on a touch keyboard */
+  }
+
+  .appbar-me .name {
+    display: none;
+  }
+
+  /* Touch targets */
+  .icon-btn,
+  .search-pill {
+    min-height: 44px;
+  }
+
+  .icon-btn {
+    width: 44px;
+    height: 44px;
   }
 
   main {
-    padding: 1rem 0.9rem 3rem;
+    padding: 0.6rem 0.4rem 3rem;
   }
 
   .drawer-backdrop {
@@ -2145,9 +2767,10 @@ button:not(:disabled):active {
     width: min(290px, 84vw);
     z-index: 301;
     padding: 20px 14px;
-    background: color-mix(in srgb, var(--bg) 75%, transparent);
-    backdrop-filter: blur(24px);
-    -webkit-backdrop-filter: blur(24px);
+    background: color-mix(in srgb, var(--bg) 72%, transparent);
+    background-image: var(--sheen);
+    backdrop-filter: blur(var(--blur)) saturate(165%);
+    -webkit-backdrop-filter: blur(var(--blur)) saturate(165%);
     border-right: 1px solid var(--border-strong);
     display: flex;
     flex-direction: column;
@@ -2170,7 +2793,7 @@ button:not(:disabled):active {
 
 /* Shimmer skeletons (D4/2A) */
 .shimmer {
-  border-radius: 11px;
+  border-radius: var(--radius);
   background: linear-gradient(100deg, var(--surface) 40%, var(--surface-2) 50%, var(--surface) 60%);
   background-size: 200% 100%;
   animation: shimmer 1.4s ease-in-out infinite;
@@ -2209,3 +2832,435 @@ button:not(:disabled):active {
   font-size: 0.85rem;
   margin: 0.3rem 0 1rem;
 }
+
+/* ==========================================================================
+   Layout pass — page rhythm, sticky rails, and overflow fixes.
+   Appended last so it wins over the older per-page rules above.
+   ========================================================================== */
+
+/* --- Page header ---------------------------------------------------------
+   Was: h1 left, description flung to the far right edge (~1000px away on a
+   wide screen), so the two never read as one unit. Now the description sits
+   directly under the title and the right column is reserved for actions. */
+.page-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 1.5rem;
+  row-gap: 0.25rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.9rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.page-header h1 {
+  grid-column: 1;
+  grid-row: 1;
+  font-size: 1.6rem;
+  font-weight: 650;
+  line-height: 1.15;
+}
+
+.page-header > .muted {
+  grid-column: 1;
+  grid-row: 2;
+  font-size: 0.88rem;
+}
+
+/* Anything that isn't the title or the subtitle is an action: right column,
+   vertically centred across both rows. */
+.page-header > *:not(h1):not(.muted) {
+  grid-column: 2;
+  grid-row: 1 / -1;
+  justify-self: end;
+}
+
+@media (max-width: 640px) {
+  .page-header {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .page-header > *:not(h1):not(.muted) {
+    grid-column: 1;
+    grid-row: auto;
+    justify-self: start;
+  }
+}
+
+/* --- Dashboard -----------------------------------------------------------
+   The right rail is short; the task list is long. Stick the rail so the
+   calendar and Today plan stay on screen while the list scrolls. */
+.dash-grid > :last-child {
+  position: sticky;
+  top: 76px; /* clears the sticky appbar */
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-height: calc(100vh - 92px);
+  overflow-y: auto;
+}
+
+@media (max-width: 900px) {
+  .dash-grid > :last-child {
+    position: static;
+    max-height: none;
+    overflow: visible;
+  }
+}
+
+/* Done/dropped was an 11-row wall taking more vertical space than the open
+   tasks it sits under. Collapsed by default via <details>. */
+.done-fold {
+  margin-top: 1.75rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.5rem;
+}
+
+.done-fold > summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 0.5rem 0;
+  font-size: 0.88rem;
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.done-fold > summary::-webkit-details-marker {
+  display: none;
+}
+
+.done-fold > summary::before {
+  content: "▸";
+  font-size: 0.7rem;
+  transition: transform 0.12s ease;
+}
+
+.done-fold[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.done-fold > summary:hover {
+  color: var(--text);
+}
+
+/* Keep the row's action anchored to the text instead of stranded at the far
+   right of a 1000px row. */
+.mytask .meeting-link {
+  margin-left: auto;
+  flex: none;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.mytask:hover .meeting-link,
+.mytask .meeting-link:focus-visible {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .mytask .meeting-link {
+    opacity: 1;
+  }
+}
+
+/* --- Tasks table ---------------------------------------------------------
+   Date pickers were eating ~150px each and pushing focus/priority/status off
+   into the distance. Size the columns to their content. */
+.task-table input[type="date"] {
+  max-width: 118px;
+  padding-inline: 0.3rem;
+}
+
+.task-table select.cell-input {
+  max-width: 104px;
+}
+
+.task-title-cell .edited-flag {
+  margin-left: 0.4rem;
+  margin-top: 0;
+  vertical-align: middle;
+}
+
+/* Cap the conversation column — 1200px-wide message bubbles are unreadable. */
+.chat-scroll > * {
+  width: 100%;
+  max-width: 820px;
+  margin-inline: auto;
+}
+
+
+/* --- Meetings ------------------------------------------------------------
+   Record and upload were two identical-looking stacked cards doing the same
+   job. One panel now, split by a labelled rule. */
+.new-meeting {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--glass-shadow);
+  padding: 1.1rem 1.2rem;
+  margin-bottom: 1.75rem;
+}
+
+.new-meeting > .record-card,
+.new-meeting > .upload-card {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
+  padding: 0;
+  margin: 0;
+}
+
+/* Real grid so the title field stops floating in a 500px gap. */
+.new-meeting > .upload-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.new-meeting-or {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 1.1rem 0;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.new-meeting-or::before,
+.new-meeting-or::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.new-meeting > .upload-card > .upload-tabs,
+.new-meeting > .upload-card > .upload-textarea,
+.new-meeting > .upload-card > .upload-status {
+  grid-column: 1 / -1;
+}
+
+.new-meeting > .upload-card input[type="file"] {
+  grid-column: 1 / -1;
+}
+
+.section-header:first-of-type {
+  margin-top: 1.5rem;
+}
+
+.notes-details > summary {
+  cursor: pointer;
+  padding: 0.4rem 0;
+  color: var(--text-dim);
+  font-size: 0.88rem;
+}
+
+.notes-details > summary:hover {
+  color: var(--text);
+}
+
+/* ==========================================================================
+   PeopleOS convergence — filter bar, record-row chips, status pills.
+   ========================================================================== */
+
+/* --- Filter bar ---------------------------------------------------------- */
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 1rem;
+}
+
+.filter-bar input[type="text"],
+.filter-bar input[type="search"],
+.filter-bar select {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  padding: 0.5rem 0.7rem;
+  font-size: 0.85rem;
+  min-height: 38px;
+}
+
+/* Native dark-mode select arrows render light-on-light on Windows; draw our
+   own chevron and hide the platform one. */
+.filter-bar select {
+  appearance: none;
+  padding-right: 2rem;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='%23989db0' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.6rem center;
+  background-size: 12px;
+  cursor: pointer;
+}
+
+.filter-bar select:hover,
+.filter-bar input:hover {
+  border-color: var(--border-strong);
+}
+
+.filter-bar .filter-count {
+  margin-left: auto;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+/* --- Segmented control ---------------------------------------------------
+   Ships where multiple views genuinely exist (Gantt Day/Week/Month). */
+.segmented {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+.segmented button {
+  background: transparent;
+  color: var(--text-dim);
+  border: none;
+  border-radius: 999px;
+  padding: 0.32rem 0.85rem;
+  font-size: 0.8rem;
+  font-weight: 550;
+  min-height: 30px;
+  cursor: pointer;
+}
+
+.segmented button:hover:not(.active) {
+  color: var(--text);
+  background: transparent;
+}
+
+.segmented button.active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--glass-shadow);
+}
+
+/* --- Mono chip: IDs, dates, durations ------------------------------------ */
+.code-chip {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  background: var(--surface-2);
+  /* --border is a white glass edge; on a near-white light panel it vanishes.
+     Chips need a real outline in both themes. */
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 1px 7px;
+  white-space: nowrap;
+}
+
+/* --- Status pill: leading dot + label ------------------------------------
+   Label text is --text (not the semantic hue) so every pill clears 4.5:1;
+   the dot alone carries the color. */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.68rem;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-radius: 999px;
+  padding: 0.15rem 0.6rem 0.15rem 0.5rem;
+  white-space: nowrap;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+}
+
+.status-pill::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-dim);
+  flex-shrink: 0;
+}
+
+.status-pill.done::before { background: var(--success); }
+.status-pill.failed::before { background: var(--danger); }
+.status-pill.transcribing::before,
+.status-pill.uploaded::before { background: var(--warn); }
+.status-pill.open::before { background: var(--accent); }
+
+/* Processing states pulse so "still working" is legible without reading. */
+.status-pill.transcribing::before,
+.status-pill.uploaded::before {
+  animation: now-pulse 2s ease-out infinite;
+}
+
+/* --- Avatar chip ---------------------------------------------------------
+   Only rendered on multi-person surfaces (meeting detail, maybe-mine inbox).
+   On /tasks every row is mine, so an avatar column would be identical
+   decoration on every row. */
+.avatar-chip {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+  text-transform: uppercase;
+  user-select: none;
+}
+
+.avatar-chip.unassigned {
+  background: var(--surface-2);
+  border: 1px dashed var(--border-strong);
+  color: var(--text-faint);
+}
+
+/* 8 fixed hues at 42% lightness — all ≥4.5:1 against white glyph text. */
+.avatar-chip.h0 { background: #6d5bd0; }
+.avatar-chip.h1 { background: #1f7a6b; }
+.avatar-chip.h2 { background: #a2503c; }
+.avatar-chip.h3 { background: #2f6ba8; }
+.avatar-chip.h4 { background: #8a4a86; }
+.avatar-chip.h5 { background: #57713a; }
+.avatar-chip.h6 { background: #a35a2a; }
+.avatar-chip.h7 { background: #3d5f97; }
+
+.owner-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* --- Meeting card: record row -------------------------------------------- */
+.meeting-card {
+  gap: 0.9rem;
+}
+
+.meeting-card .ghost-danger {
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.meeting-card:hover .ghost-danger,
+.meeting-card .ghost-danger:focus-visible {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .meeting-card .ghost-danger {
+    opacity: 1;
+  }
+}
+

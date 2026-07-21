@@ -24,7 +24,8 @@ from . import orchestrator, planner
 
 logger = logging.getLogger(__name__)
 
-MAX_TOOL_ROUNDS = 4
+MAX_TOOL_ROUNDS = 6
+MAX_TASKS_PER_BATCH = 50
 
 
 # --- Tool argument schemas ---
@@ -35,6 +36,10 @@ class AddTaskArgs(BaseModel):
     due_date: date | None = None
     priority: str | None = Field(default=None, pattern="^(high|medium|low)$")
     estimated_minutes: int | None = Field(default=None, ge=5, le=960)
+
+
+class AddTasksArgs(BaseModel):
+    tasks: list[AddTaskArgs] = Field(min_length=1, max_length=MAX_TASKS_PER_BATCH)
 
 
 class UpdateTaskArgs(BaseModel):
@@ -65,6 +70,8 @@ Tools:
 - add_task: args {{title, category: "work"|"personal", due_date: "YYYY-MM-DD"|null, priority: "high"|"medium"|"low"|null, estimated_minutes: int|null}}
   RULE: before calling, you MUST know title + category + (due date or explicitly none).
   If anything is missing or ambiguous, ask ONE concise question instead of guessing.
+- add_tasks: args {{tasks: [ {{...same fields as add_task}}, ... ]}} — add MANY tasks in ONE call.
+  ALWAYS prefer this over repeated add_task when adding two or more tasks at once.
 - update_task: args {{task_id, ...fields to change (status "done" completes a task, progress 0-100)}}
 - query: args {{what: "today"|"tomorrow"|"overdue"|"open_tasks"|"week"}} — schedule/tasks facts
 - replan: args {{}} — rebuild the schedule after changes
@@ -189,33 +196,41 @@ def handle_message(db: Session, user_text: str) -> list[ChatMessage]:
     return new_messages
 
 
+def _create_task(db: Session, a: AddTaskArgs) -> dict:
+    """Create one task (shared by add_task and add_tasks)."""
+    # Idempotency: an identical open task means a retried request — reuse it.
+    existing = db.scalar(
+        select(Task).where(
+            Task.title.ilike(a.title), Task.status == "open", Task.due_date == a.due_date
+        )
+    )
+    if existing:
+        return {"created_task_id": str(existing.id), "title": existing.title, "note": "already existed"}
+    task = Task(
+        meeting_id=_chat_meeting_id(db),
+        title=a.title,
+        category=a.category,
+        due_date=a.due_date,
+        priority=a.priority,
+        estimated_minutes=a.estimated_minutes,
+        estimate_source="user" if a.estimated_minutes else "llm",
+        assignment="mine",
+        assignment_source="user",
+        assignment_reason="Added via chat",
+        edited=True,
+    )
+    db.add(task)
+    db.commit()
+    return {"created_task_id": str(task.id), "title": task.title}
+
+
 def _run_tool(db: Session, tool: str, args: dict):
     if tool == "add_task":
-        a = AddTaskArgs.model_validate(args)
-        # Idempotency: an identical open task means a retried request — reuse it.
-        existing = db.scalar(
-            select(Task).where(
-                Task.title.ilike(a.title), Task.status == "open", Task.due_date == a.due_date
-            )
-        )
-        if existing:
-            return {"created_task_id": str(existing.id), "title": existing.title, "note": "already existed"}
-        task = Task(
-            meeting_id=_chat_meeting_id(db),
-            title=a.title,
-            category=a.category,
-            due_date=a.due_date,
-            priority=a.priority,
-            estimated_minutes=a.estimated_minutes,
-            estimate_source="user" if a.estimated_minutes else "llm",
-            assignment="mine",
-            assignment_source="user",
-            assignment_reason="Added via chat",
-            edited=True,
-        )
-        db.add(task)
-        db.commit()
-        return {"created_task_id": str(task.id), "title": task.title}
+        return _create_task(db, AddTaskArgs.model_validate(args))
+
+    if tool == "add_tasks":
+        a = AddTasksArgs.model_validate(args)
+        return {"created": [_create_task(db, t) for t in a.tasks]}
 
     if tool == "update_task":
         a = UpdateTaskArgs.model_validate(args)

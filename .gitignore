@@ -9,3 +9,4 @@ next-env.d.ts
 
 .env
 .gstack/
+*.wav

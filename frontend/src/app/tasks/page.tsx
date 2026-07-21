@@ -31,13 +31,22 @@ export default function MyTasksPage() {
         <span className="muted">{tasks ? `${tasks.length} task${tasks.length === 1 ? "" : "s"}` : ""}</span>
       </div>
 
-      <div className="filters">
-        <select value={status} onChange={(e) => setStatus(e.target.value)}>
+      <div className="filter-bar">
+        <select
+          value={status}
+          onChange={(e) => setStatus(e.target.value)}
+          aria-label="Filter by status"
+        >
           <option value="open">open</option>
           <option value="done">done</option>
           <option value="dropped">dropped</option>
           <option value="">all statuses</option>
         </select>
+        {tasks && (
+          <span className="filter-count">
+            {tasks.length} shown
+          </span>
+        )}
       </div>
 
       {error && <div className="error-banner">{error}</div>}

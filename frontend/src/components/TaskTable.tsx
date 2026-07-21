@@ -13,6 +13,21 @@ const STATUSES = ["open", "done", "dropped"] as const;
 const TRIAGE_POLL_MS = 3000;
 const TRIAGE_TIMEOUT_MS = 90_000;
 
+/** 8 fixed avatar hues, picked by a stable hash so the same owner keeps the
+ * same color across renders and pages. */
+function hueClass(name: string): string {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0;
+  return `h${Math.abs(h) % 8}`;
+}
+
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "";
+  if (parts.length === 1) return parts[0].slice(0, 2);
+  return parts[0][0] + parts[parts.length - 1][0];
+}
+
 /** Inline-editable task table.
  * `showMeetingLink` adds a column linking to the source meeting.
  * `selectable` adds a checkbox column and a bulk "Assign to me" bar. */
@@ -102,6 +117,11 @@ export default function TaskTable({
 
   const allSelected = selectable && tasks.length > 0 && selected.size === tasks.length;
 
+  // Avatars only earn their pixels when owners actually differ. On /tasks
+  // every row is mine, so a column of identical chips would be decoration.
+  const distinctOwners = new Set(tasks.map((t) => t.owner).filter(Boolean));
+  const showAvatars = distinctOwners.size > 1;
+
   return (
     <>
       {error && <div className="error-banner">{error}</div>}
@@ -151,7 +171,7 @@ export default function TaskTable({
               <th>Owner</th>
               <th>Start</th>
               <th>Due</th>
-              <th>Est.</th>
+              <th className="est-cell">Est.</th>
               <th title="Heavy tasks are scheduled into your deep-focus windows first">Focus</th>
               <th>Priority</th>
               <th>Status</th>
@@ -191,11 +211,27 @@ export default function TaskTable({
                   </span>
                 </td>
                 <td>
-                  <EditableText
-                    value={t.owner ?? ""}
-                    placeholder="—"
-                    onSave={(v) => patch(t.id, { owner: v || null })}
-                  />
+                  <div className="owner-cell">
+                    {showAvatars &&
+                      (t.owner ? (
+                        <span
+                          className={`avatar-chip ${hueClass(t.owner)}`}
+                          aria-hidden
+                          title={t.owner}
+                        >
+                          {initials(t.owner)}
+                        </span>
+                      ) : (
+                        <span className="avatar-chip unassigned" aria-hidden title="Unassigned">
+                          ?
+                        </span>
+                      ))}
+                    <EditableText
+                      value={t.owner ?? ""}
+                      placeholder="—"
+                      onSave={(v) => patch(t.id, { owner: v || null })}
+                    />
+                  </div>
                 </td>
                 <td>
                   <input

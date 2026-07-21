@@ -53,15 +53,16 @@ Upload audio
                                        │
         ┌──────────────┬───────────────┼──────────────┬───────────────┐
         ▼              ▼               ▼              ▼               ▼
-   PostgreSQL 16    MinIO         faster-whisper   pyannote     LLM gateway
-   (pgvector)      (audio S3)       (local STT)   (diarize)   (OpenAI-compat
-   :5432          :9000/:9001                                  LiteLLM :1050)
+   PostgreSQL 16    MinIO            pyannote        LLM gateway
+   (pgvector)      (audio S3)      (local diarize)  (OpenAI-compat, also
+   :5432          :9000/:9001                        serves STT — :1050)
 ```
 
 - **Backend** — FastAPI + SQLAlchemy 2.0. A 202-immediate upload kicks off a background pipeline; the UI polls per-stage status columns.
 - **Frontend** — Next.js 15 App Router, React 19, `frappe-gantt` for the timeline, `react-markdown` for notes.
 - **Infra** — PostgreSQL 16 (`pgvector/pgvector:pg16`) + MinIO, both via `docker-compose.yml`.
-- **STT** — `faster-whisper` running locally on CPU (`small` model, int8). Can switch to a gateway `/v1/audio/transcriptions` endpoint via `ASR_PROVIDER=gateway`.
+- **STT** — the gateway's `/v1/audio/transcriptions` (`ASR_MODEL`, default `whisper-large-v3`). There is no local ASR: `faster-whisper` and its CUDA runtime libs were dropped once every deployment routed audio through the gateway.
+- **Diarization** — `pyannote.audio` on CPU torch, the one remaining local model. Gated on `HF_TOKEN`; without it the pipeline skips diarization and the UI offers manual speaker labels.
 - **LLM** — any OpenAI-compatible endpoint (a LiteLLM gateway). Per-job model routing via `.env`.
 
 ---

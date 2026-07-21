@@ -430,6 +430,54 @@ export async function sendChat(message: string): Promise<ChatMessage[]> {
   }
 }
 
+export async function clearChat(): Promise<void> {
+  return handle(await fetch(`${API_BASE}/chat`, { method: "DELETE" }));
+}
+
+// --- Voice: STT + TTS through the gateway (localhost:1050) ---
+
+/** True when the backend has spoken replies enabled (TTS_PROVIDER != off). */
+export async function voiceEnabled(): Promise<boolean> {
+  try {
+    const r = await handle<{ tts_enabled: boolean }>(
+      await fetch(`${API_BASE}/voice/config`, { cache: "no-store" })
+    );
+    return r.tts_enabled;
+  } catch {
+    return false;
+  }
+}
+
+/** Send one recorded utterance to the gateway ASR and get back the transcript. */
+export async function transcribeAudio(blob: Blob): Promise<string> {
+  const form = new FormData();
+  const ext = blob.type.includes("ogg") ? "ogg" : blob.type.includes("mp4") ? "mp4" : "webm";
+  form.append("audio", blob, `speech.${ext}`);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 60 * 1000);
+  try {
+    const r = await handle<{ text: string }>(
+      await fetch(`${API_BASE}/voice/transcribe`, { method: "POST", body: form, signal: controller.signal })
+    );
+    return r.text;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Synthesize reply text to speech; returns an object URL for an <audio> element
+ * (caller must URL.revokeObjectURL it when done). null if TTS is disabled. */
+export async function speakText(text: string): Promise<string | null> {
+  const res = await fetch(`${API_BASE}/voice/speak`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text }),
+  });
+  if (res.status === 409) return null; // voice replies disabled server-side
+  if (!res.ok) throw new Error(`Speech failed (${res.status})`);
+  return URL.createObjectURL(await res.blob());
+}
+
 export async function parseTimetable(file: File): Promise<TimetableEntry[]> {
   const form = new FormData();
   form.append("file", file);

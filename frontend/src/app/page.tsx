@@ -214,15 +214,15 @@ export default function MyTasksPage() {
               <div className="title">All clear</div>
               <div className="sub">Record or upload a meeting and tasks will land here on their own.</div>
               <Link href="/meetings">
-                <button>Record a meeting</button>
+                <button className="btn-primary">Record a meeting</button>
               </Link>
             </div>
           )}
           <div className="mytask-list">{rest.map(taskRow)}</div>
 
           {done.length > 0 && (
-            <>
-              <h2 className="list-title muted">Done / dropped ({done.length})</h2>
+            <details className="done-fold">
+              <summary>Done / dropped ({done.length})</summary>
               <div className="mytask-list dim">
                 {done.map((t) => (
                   <div className="mytask" key={t.id}>
@@ -233,7 +233,7 @@ export default function MyTasksPage() {
                   </div>
                 ))}
               </div>
-            </>
+            </details>
           )}
         </div>
         <div>

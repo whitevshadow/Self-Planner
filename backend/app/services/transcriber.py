@@ -1,12 +1,12 @@
 """Speech-to-text — the only place transcription is touched.
 
-Two backends, selected by ASR_PROVIDER in backend/.env:
-- "local"   → faster-whisper running on this machine (GPU/CPU per WHISPER_*).
-- "gateway" → the OpenAI-compatible gateway's /v1/audio/transcriptions
-              (reuses LLM_BASE_URL/LLM_API_KEY; model = ASR_MODEL).
+Runs on the OpenAI-compatible gateway's /v1/audio/transcriptions (reuses
+LLM_BASE_URL/LLM_API_KEY; model = ASR_MODEL). There is no local ASR backend:
+faster-whisper and its CUDA runtime were dropped since every deployment routes
+audio through the gateway.
 
-Both return the same (segments, duration_sec) contract so the pipeline and
-diarization are unaffected by the choice.
+Returns a (segments, duration_sec) contract the pipeline and diarization
+consume unchanged.
 """
 from typing import TypedDict
 
@@ -18,28 +18,6 @@ class SegmentDict(TypedDict):
     start_sec: float
     end_sec: float
     text: str
-
-
-_model = None
-
-
-def _get_model():
-    global _model
-    if _model is None:
-        from faster_whisper import WhisperModel
-
-        _model = WhisperModel(
-            settings.whisper_model,
-            device=settings.whisper_device,
-            compute_type=settings.whisper_compute,
-        )
-    return _model
-
-
-def preload() -> None:
-    # The gateway backend has nothing to preload; only local Whisper does.
-    if settings.asr_provider == "local":
-        _get_model()
 
 
 # Whisper often splits one sentence across several tiny segments; merging them
@@ -71,26 +49,18 @@ def _merge_segments(raw: list[tuple[float, float, str]]) -> list[SegmentDict]:
     return out
 
 
-def _transcribe_local(path: str) -> tuple[list[SegmentDict], float]:
-    segments, info = _get_model().transcribe(
-        path, task=settings.whisper_task, vad_filter=True
-    )
-    raw = [(s.start, s.end, s.text) for s in segments]
-    return _merge_segments(raw), info.duration
+def transcribe(path: str) -> tuple[list[SegmentDict], float]:
+    """Returns (segments, duration_sec) from the gateway's transcription route.
 
-
-def _transcribe_gateway(path: str) -> tuple[list[SegmentDict], float]:
-    """Transcribe via the gateway's OpenAI-compatible /v1/audio/transcriptions.
-
-    Note: the gateway is transcribe-only (no /v1/audio/translations), so unlike
-    local WHISPER_TASK=translate it cannot force non-English speech to English —
-    it returns the transcript in the spoken language.
+    Note: the gateway is transcribe-only (no /v1/audio/translations), so it
+    cannot force non-English speech to English — it returns the transcript in
+    the spoken language.
     """
     from openai import OpenAI
 
     if not settings.llm_base_url_resolved or not settings.llm_api_key_resolved:
         raise RuntimeError(
-            "ASR_PROVIDER=gateway needs LLM_BASE_URL/LLM_API_KEY in backend/.env"
+            "Transcription needs LLM_BASE_URL/LLM_API_KEY in the root .env"
         )
     client = OpenAI(
         base_url=settings.llm_base_url_resolved,
@@ -121,10 +91,3 @@ def _transcribe_gateway(path: str) -> tuple[list[SegmentDict], float]:
     if duration is None:
         duration = merged[-1]["end_sec"] if merged else 0.0
     return merged, float(duration)
-
-
-def transcribe(path: str) -> tuple[list[SegmentDict], float]:
-    """Returns (segments, duration_sec) using the configured ASR backend."""
-    if settings.asr_provider == "gateway":
-        return _transcribe_gateway(path)
-    return _transcribe_local(path)

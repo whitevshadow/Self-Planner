@@ -2,10 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  clearChat,
   confirmTimetable,
   getChatHistory,
   parseTimetable,
   sendChat,
+  speakText,
+  transcribeAudio,
+  voiceEnabled,
   type ChatMessage,
   type TimetableEntry,
 } from "@/lib/api";
@@ -13,6 +17,31 @@ import {
 const DAY_LABEL: Record<string, string> = {
   mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat", sun: "Sun",
 };
+
+const SUGGESTIONS = [
+  "What does my day look like?",
+  "Remind me to review Rahul's PR by Thursday",
+  "Add task: prepare demo, work, high priority, by Friday",
+  "Mark the signup form task done",
+];
+
+/** Friendlier label for a tool-call chip than the raw tool name. */
+function toolLabel(tool: string | undefined): string {
+  switch (tool) {
+    case "add_task":
+      return "Task added";
+    case "add_tasks":
+      return "Tasks added";
+    case "update_task":
+      return "Task updated";
+    case "replan":
+      return "Schedule replanned";
+    case "query":
+      return "Checked your schedule";
+    default:
+      return `${tool ?? "tool"} executed`;
+  }
+}
 
 export default function ChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -23,6 +52,106 @@ export default function ChatPage() {
   const [confirming, setConfirming] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const taRef = useRef<HTMLTextAreaElement>(null);
+
+  // --- Live voice: record → gateway STT → agent → gateway TTS → play ---
+  const [recording, setRecording] = useState(false);
+  const [speaking, setSpeaking] = useState(false);
+  const [ttsOn, setTtsOn] = useState(false); // server has spoken replies enabled
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioUrlRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    voiceEnabled().then(setTtsOn).catch(() => setTtsOn(false));
+  }, []);
+
+  const stopPlayback = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+    if (audioUrlRef.current) {
+      URL.revokeObjectURL(audioUrlRef.current);
+      audioUrlRef.current = null;
+    }
+    setSpeaking(false);
+  }, []);
+
+  const speak = useCallback(
+    async (text: string) => {
+      if (!ttsOn || !text.trim()) return;
+      try {
+        const url = await speakText(text);
+        if (!url) return;
+        stopPlayback();
+        audioUrlRef.current = url;
+        const audio = new Audio(url);
+        audioRef.current = audio;
+        audio.onended = stopPlayback;
+        setSpeaking(true);
+        await audio.play();
+      } catch {
+        stopPlayback();
+      }
+    },
+    [ttsOn, stopPlayback]
+  );
+
+  const processUtterance = useCallback(
+    async (blob: Blob) => {
+      setBusy(true);
+      try {
+        const text = (await transcribeAudio(blob)).trim();
+        if (!text) return;
+        setMessages((m) => [
+          ...m,
+          { id: "tmp", role: "user", content: text, tool_calls: null, created_at: new Date().toISOString() },
+        ]);
+        const created = await sendChat(text);
+        await getChatHistory().then(setMessages).catch(() => {});
+        const reply = [...created].reverse().find((m) => m.role === "assistant");
+        if (reply) await speak(reply.content);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Voice message failed");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [speak]
+  );
+
+  const toggleMic = useCallback(async () => {
+    // Tap while the assistant is speaking = barge-in: cut the reply and listen.
+    if (speaking) stopPlayback();
+    if (recording) {
+      recorderRef.current?.stop(); // fires onstop → processUtterance
+      return;
+    }
+    if (busy) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const rec = new MediaRecorder(stream);
+      chunksRef.current = [];
+      rec.ondataavailable = (e) => e.data.size > 0 && chunksRef.current.push(e.data);
+      rec.onstop = () => {
+        stream.getTracks().forEach((t) => t.stop());
+        setRecording(false);
+        const blob = new Blob(chunksRef.current, { type: rec.mimeType || "audio/webm" });
+        if (blob.size > 0) processUtterance(blob);
+      };
+      recorderRef.current = rec;
+      rec.start();
+      setRecording(true);
+      setError(null);
+    } catch {
+      setError("Microphone access was denied.");
+    }
+  }, [recording, speaking, busy, stopPlayback, processUtterance]);
+
+  useEffect(() => stopPlayback, [stopPlayback]); // stop audio on unmount
 
   const refresh = useCallback(async () => {
     try {
@@ -39,24 +168,57 @@ export default function ChatPage() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, preview]);
+  }, [messages, preview, busy]);
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    const text = input.trim();
-    if (!text || busy) return;
-    setInput("");
+  // Auto-grow the composer up to a max height (ChatGPT-style).
+  useEffect(() => {
+    const ta = taRef.current;
+    if (!ta) return;
+    ta.style.height = "auto";
+    ta.style.height = `${Math.min(ta.scrollHeight, 200)}px`;
+  }, [input]);
+
+  const send = useCallback(
+    async (raw: string) => {
+      const text = raw.trim();
+      if (!text || busy) return;
+      setInput("");
+      setBusy(true);
+      setMessages((m) => [
+        ...m,
+        { id: "tmp", role: "user", content: text, tool_calls: null, created_at: new Date().toISOString() },
+      ]);
+      try {
+        await sendChat(text);
+        await refresh();
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Send failed");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [busy, refresh]
+  );
+
+  function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      send(input);
+    }
+  }
+
+  async function newChat() {
+    if (busy) return;
+    if (messages.length > 0 && !confirm("Start a new chat? This clears the current conversation.")) return;
     setBusy(true);
-    setMessages((m) => [
-      ...m,
-      { id: "tmp", role: "user", content: text, tool_calls: null, created_at: new Date().toISOString() },
-    ]);
     try {
-      await sendChat(text);
-      await refresh();
+      await clearChat();
+      setMessages([]);
+      setPreview(null);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Send failed");
+      setError(err instanceof Error ? err.message : "Couldn't start a new chat");
     } finally {
       setBusy(false);
     }
@@ -100,37 +262,59 @@ export default function ChatPage() {
     }
   }
 
+  const empty = messages.length === 0 && !preview;
+
   return (
     <>
-      <div className="page-header">
-        <h1>Chat</h1>
-        <span className="muted">Add tasks, ask about your schedule, or upload a timetable</span>
-      </div>
-
-      <div className="chat-box">
+      <div className={`chat-box${empty ? " empty" : ""}`}>
+        <div className="chat-topbar">
+          <span className="chat-topbar-title">Chat</span>
+          <span className="muted">Add tasks, ask about your schedule, or upload a timetable</span>
+          <button className="mini ghost new-chat-btn" onClick={newChat} disabled={busy}>
+            ＋ New chat
+          </button>
+        </div>
         <div className="chat-scroll">
-          {messages.length === 0 && !error && (
-            <div className="empty">
-              Try: &quot;remind me to review Rahul&apos;s PR by Thursday&quot; · &quot;what&apos;s my day look
-              like?&quot; · &quot;mark the signup form task done&quot; — or drop a timetable file below.
+          {empty && !error && (
+            <div className="chat-welcome">
+              <div className="chat-welcome-avatar">S</div>
+              <h2>How can I help you plan?</h2>
+              <p className="muted">Ask about your schedule, add tasks in plain English, or drop a timetable below.</p>
+              <div className="chat-suggestions">
+                {SUGGESTIONS.map((s) => (
+                  <button key={s} className="chat-suggestion" onClick={() => send(s)} disabled={busy}>
+                    {s}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
+
           {messages.map((m) =>
             m.role === "tool" ? (
               <div className="chat-tool" key={m.id} title={m.content}>
-                ⚙ {m.tool_calls?.[0]?.tool ?? "tool"} executed
+                <span className="chat-tool-check">✓</span> {toolLabel(m.tool_calls?.[0]?.tool)}
               </div>
             ) : (
-              <div className={`chat-msg ${m.role}`} key={m.id}>
-                {m.content.split("\n").map((line, i) => (
-                  <div key={i}>{line}</div>
-                ))}
+              <div className={`chat-row ${m.role}`} key={m.id}>
+                {m.role === "assistant" && <div className="chat-avatar">S</div>}
+                <div className={`chat-msg ${m.role}`}>
+                  {m.content.split("\n").map((line, i) => (
+                    <div key={i}>{line || " "}</div>
+                  ))}
+                </div>
               </div>
             )
           )}
+
           {busy && (
-            <div className="chat-msg assistant">
-              <span className="spinner" />
+            <div className="chat-row assistant">
+              <div className="chat-avatar">S</div>
+              <div className="chat-msg assistant typing">
+                <span className="typing-dot" />
+                <span className="typing-dot" />
+                <span className="typing-dot" />
+              </div>
             </div>
           )}
 
@@ -184,10 +368,16 @@ export default function ChatPage() {
 
         {error && <div className="error-banner">{error}</div>}
 
-        <form className="chat-input" onSubmit={submit}>
+        <form
+          className="chat-input"
+          onSubmit={(e) => {
+            e.preventDefault();
+            send(input);
+          }}
+        >
           <button
             type="button"
-            className="mini ghost"
+            className="chat-attach"
             title="Upload timetable (image, PDF, CSV, Excel, txt)"
             onClick={() => fileRef.current?.click()}
             disabled={busy}
@@ -201,15 +391,28 @@ export default function ChatPage() {
             style={{ display: "none" }}
             onChange={onFile}
           />
-          <input
-            type="text"
-            placeholder="Ask or instruct… (e.g. 'add task: prepare demo, work, by Friday')"
+          <textarea
+            ref={taRef}
+            rows={1}
+            placeholder="Ask or instruct…  (e.g. 'add task: prepare demo, work, by Friday')"
             value={input}
             onChange={(e) => setInput(e.target.value)}
+            onKeyDown={onKeyDown}
             disabled={busy}
           />
-          <button type="submit" disabled={busy || !input.trim()}>
-            Send
+          <button
+            type="button"
+            className={`chat-mic${recording ? " recording" : ""}${speaking ? " speaking" : ""}`}
+            onClick={toggleMic}
+            disabled={busy && !recording && !speaking}
+            title={
+              speaking ? "Stop speaking" : recording ? "Stop & send" : "Talk to the assistant"
+            }
+          >
+            {speaking ? "⏹" : recording ? "●" : "🎤"}
+          </button>
+          <button type="submit" className="chat-send" disabled={busy || !input.trim()} title="Send">
+            ↑
           </button>
         </form>
       </div>

@@ -21,11 +21,10 @@ export default function MeetingCard({
     <Link href={`/meetings/${meeting.id}`} className="meeting-card">
       <div className="info">
         <div className="title">{meeting.title}</div>
-        <div className="meta">
-          {new Date(meeting.created_at).toLocaleString()} · {formatDuration(meeting.duration_sec)}
-        </div>
+        <div className="meta">{new Date(meeting.created_at).toLocaleString()}</div>
       </div>
-      <span className={`badge ${meeting.status}`}>{meeting.status}</span>
+      <span className="code-chip">{formatDuration(meeting.duration_sec)}</span>
+      <span className={`status-pill ${meeting.status}`}>{meeting.status}</span>
       <button className="ghost-danger" onClick={handleDelete}>
         Delete
       </button>

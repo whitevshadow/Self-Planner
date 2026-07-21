@@ -1,155 +1,194 @@
 ---
-version: 1.0
-name: Self Planner — Glass Dark
-description: A modern glassmorphism design system for Self Planner. Deep navy canvas with a violet radial glow, translucent frosted panels defined by hairline borders and backdrop blur, a single violet accent, Space Grotesk display type over Inter body. Dark-first with a frosted-daylight light theme on the same tokens.
+version: 2.0
+name: Self Planner — Glass
+description: >
+  Translucent panels floating over a glowing canvas. Deep near-black with a violet
+  radial glow top-left, indigo upper-right and a teal wash at the bottom; panels are
+  low-alpha white over a 30px backdrop blur, defined by hairline borders rather than
+  by fills. One saturated violet accent, split into fill/text/tint tokens so every
+  text pair clears WCAG AA. Dense 4/8px spacing is preserved — glass is the surface
+  treatment, not an excuse for air. Dark-first with a pale-lavender light theme on
+  the same variables.
+source_of_truth: src/app/globals.css
+reference: PeopleOS (user-supplied screenshots, 2026-07-21)
+
+# ─────────────────────────────────────────────────────────────────────
+# THE ONE RULE THAT DRIVES EVERYTHING ELSE
+# On glass, the backdrop behind text is not a constant — it is whatever the
+# glow puts there. Every muted colour below is the DIMMEST value that still
+# clears 4.5:1 at the glow's hottest point, computed by compositing
+# panel-alpha over glow-peak over canvas. Do not dim them "because they look
+# too bright on a flat swatch". They are not on a flat swatch.
+# Verify with the method in ## contrast before changing any of them.
+# ─────────────────────────────────────────────────────────────────────
 
 colors:
-  # Canvas + glow
-  bg: "#0a0d16"
-  glow-a: "rgba(124, 92, 255, 0.16)"   # violet, top-left
-  glow-b: "rgba(56, 189, 248, 0.07)"    # sky, bottom-right
-  # Glass surfaces
-  surface: "rgba(255, 255, 255, 0.045)" # panel fill
-  surface-2: "rgba(255, 255, 255, 0.07)"
-  surface-solid: "#141827"              # backdrop-filter fallback + dropdowns
-  border: "rgba(255, 255, 255, 0.09)"   # glass hairline
-  border-strong: "rgba(255, 255, 255, 0.16)"
-  # Text
-  text: "rgba(255, 255, 255, 0.92)"
-  text-dim: "rgba(255, 255, 255, 0.55)"
-  text-faint: "rgba(255, 255, 255, 0.35)"
-  # Accent (single, structural)
-  accent: "#7c5cff"
-  accent-hover: "#6847f0"
-  accent-soft: "rgba(124, 92, 255, 0.18)"
-  # Semantic
-  danger: "#ff6b6b"
-  success: "#3ddc84"
-  warn: "#ffb020"
+  dark:
+    bg: "#07070f"                                  # near-black; the glow does the colouring
+    glow-a: "rgba(124, 92, 255, 0.24)"             # violet, top-left
+    glow-b: "rgba(45, 212, 191, 0.12)"             # teal, bottom
+    glow-c: "rgba(96, 84, 220, 0.19)"              # indigo, upper-right
+    surface: "rgba(255, 255, 255, 0.045)"          # glass panel fill — thin, so the glow reads through
+    surface-2: "rgba(255, 255, 255, 0.05)"         # input / hover / raised (stacks ON the sheen — see ## contrast)
+    surface-solid: "rgba(22, 23, 32, 0.86)"        # dropdowns over page content
+    surface-opaque: "#15161f"                      # @supports fallback
+    row-hover: "rgba(255, 255, 255, 0.055)"
+    border: "rgba(255, 255, 255, 0.1)"             # glass edge
+    border-strong: "rgba(255, 255, 255, 0.2)"      # chips, outlines needing a real edge
+    text: "#eef0f7"
+    text-dim: "#bcc0d0"
+    text-faint: "#a6abbd"
+    accent: "#7c5cff"                              # tints, borders, dots, rings — NEVER text, never a fill under text
+    accent-solid: "#7053e5"                        # fills that carry white text (5.2:1)
+    accent-hover: "#5f43d4"
+    accent-text: "#b3a2ff"                         # accent-coloured TEXT (5.8:1 at the hotspot)
+    accent-soft: "rgba(124, 92, 255, 0.16)"
+    on-accent: "#ffffff"
+    danger: "#ff7b85"
+    success: "#4fd37c"
+    warn: "#f0b64a"
+  light:
+    bg: "#eef0fb"                                  # pale lavender
+    glow-a: "rgba(139, 124, 255, 0.3)"
+    glow-b: "rgba(120, 165, 255, 0.28)"
+    glow-c: "rgba(160, 150, 255, 0.22)"
+    surface: "rgba(255, 255, 255, 0.55)"
+    surface-2: "rgba(255, 255, 255, 0.8)"
+    surface-solid: "rgba(255, 255, 255, 0.94)"
+    surface-opaque: "#ffffff"
+    row-hover: "rgba(255, 255, 255, 0.75)"
+    border: "rgba(255, 255, 255, 0.85)"
+    border-strong: "rgba(23, 26, 48, 0.14)"
+    text: "#141631"
+    text-dim: "#4d5270"
+    text-faint: "#585e79"
+    accent: "#6a49f2"
+    accent-solid: "#6a49f2"
+    accent-hover: "#5838e0"
+    accent-text: "#5836e0"                         # darker than the fill: it sits on the violet tint
+    accent-soft: "rgba(106, 73, 242, 0.12)"
+    on-accent: "#ffffff"
+    danger: "#c92b3c"
+    success: "#10804a"
+    warn: "#8f5f04"
+
+# Why the accent is three tokens, not one:
+# a single violet cannot simultaneously be (a) a fill dark enough to carry white
+# text and (b) text light enough to read on a near-black canvas. Splitting it is
+# what lets the brand hue stay #7c5cff while both uses pass AA.
+accent-usage:
+  fill-under-white-text: accent-solid    # buttons, avatars, logo mark, today pill, sent chat bubbles
+  coloured-text: accent-text             # links, timestamps, .meeting-link, active nav icon
+  tint-border-dot-ring: accent           # .sb-row.active border, status dots, focus ring, progress fill
 
 typography:
   display:
-    fontFamily: "Space Grotesk"
-    role: "Headings h1-h3, greeting, card titles"
+    fontFamily: "Space Grotesk"          # next/font, self-hosted at runtime
+    role: "h1-h3, greeting, card titles"
     weight: 700
     letterSpacing: "-0.02em"
   body:
     fontFamily: "Inter"
     role: "Body copy, table rows, nav, meta"
-    weight: 400
+    size: 14px
+    lineHeight: 1.45
+  mono:
+    fontFamily: "ui-monospace, Cascadia Code, SF Mono, Consolas"
+    role: "Dates, times, durations, IDs — anything that should align in a column"
 
-rounded:
-  sm: 8px
-  md: 11px
-  lg: 16px      # --radius, the panel default
-  full: 9999px
-
+blur: 30px                               # --blur; applied with saturate(165%)
+radius:
+  sm: 11px                               # --radius-sm: inputs, small buttons, chips
+  md: 18px                               # --radius, the panel default
+  lg: 26px                               # --radius-lg: sidebar, appbar, full-bleed panels
+  full: 9999px                           # buttons, pills, segmented control
+  # Every non-micro radius in globals.css resolves to one of these. Only the
+  # progress track (3px) and <kbd> (4px) still carry raw px.
 spacing:
-  base: 8px
+  base: 8px                              # 4/8px scale
+shadow:
+  dark: "0 10px 40px rgba(0, 0, 0, 0.34)"
+  light: "0 10px 40px rgba(40, 45, 100, 0.13)"
+  accent-glow: "0 6px 20px {accent}@38% — depth on the primary button; NOT a gradient"
+sheen:
+  dark: "linear-gradient(157deg, rgba(255,255,255,0.05), transparent 58%)"
+  light: "linear-gradient(157deg, rgba(255,255,255,0.55), transparent 58%)"
+  edge-hi: "inset 0 1px 0 rgba(255,255,255, .14 dark / .9 light) — the lit top edge"
 
 components:
   glass-panel:
-    background: "{colors.surface}"
-    border: "1px solid {colors.border}"
-    borderRadius: "{rounded.lg}"
-    backdropFilter: "blur(18px)"
-    boxShadow: "0 8px 32px rgba(0,0,0,0.25)"
-  sidebar:
-    width: 250px
-    background: "{colors.surface}"
-    backdropFilter: "blur(20px)"
-    activeRow: "{colors.accent-soft} fill + 2px inset {colors.accent} left indicator"
-  accent-button:
-    background: "{colors.accent}"
-    hover: "{colors.accent-hover}"
-    press: "scale(0.98)"
-    borderRadius: "{rounded.sm}"
----
+    applies-to: >
+      .upload-card .record-card .meeting-card .summary-card .task-table-wrap
+      .today-col .mini-cal .hp-section .inbox .speaker-bar .gantt-wrap
+      .tt-preview .new-meeting .transcript .rec-step-guide .mytask .now-card
+      .block .empty-state .error-banner .notice-banner .bulk-bar
+      .chat-suggestion .search-pop .sidebar .appbar
+    background: "{surface}"
+    border: "1px solid {border}"
+    borderRadius: "{radius.md}"
+    backdropFilter: "blur({blur}) saturate(165%)"
+    boxShadow: "{shadow}, {sheen.edge-hi}"
+    backgroundImage: "{sheen}"
+    fallback: "@supports not (backdrop-filter) -> background: {surface-opaque}"
+  shell:
+    layout: "flex; padding 10px; gap 10px — panels are INSET, never flush to the viewport"
+    sidebar: { width: 240px, collapsed: 64px, radius: "{radius.lg}", sticky: true }
+    appbar: "rounded panel, sticky, own blur; hamburger . title . search (centred, max 460px) . bell . identity"
+  sidebar-row:
+    rest: "color {text-dim}; 1px transparent border reserved so :active never shifts layout"
+    hover: "background {surface-2}; color {text}"
+    active: "background {accent-soft}; border 1px {accent}@45%; ::after 6px {accent} dot pinned right; icon {accent-text}"
+  buttons:
+    primary: "{accent-solid} fill, {on-accent} text, pill radius, 38px min — FLAT, never a gradient"
+    secondary: "transparent, 1px {border-strong}, pill radius"
+    ghost-mini-ghostdanger: "unchanged from v1"
+    specificity-trap: >
+      `button:hover:not(:disabled)` has specificity (0,2,1). Any transparent
+      button MUST out-specify it (e.g. `button.theme-toggle:hover:not(:disabled)`)
+      or it turns into a solid violet button on hover.
+  record-row:
+    code-chip: "mono, {surface-2} fill, 1px {border-strong}, radius.sm — IDs, dates, durations"
+    status-pill: "6px leading dot carries the semantic colour; the LABEL stays {text} so every pill clears 4.5:1"
+    avatar-chip: "30px circle, initials, 1 of 8 fixed hues by stable hash; all >=5.1:1 under white glyphs"
+    rows: "hairline bottom border, hover = {row-hover}. NO zebra striping — it fights the borders."
+  segmented:
+    use: "only where multiple views genuinely exist (Gantt Day/Week/Month)"
+    style: "{surface-2} pill track; active button gets {surface} fill + shadow"
+  filter-bar:
+    controls: >
+      {surface-2}, radius.sm, 38px min-height; selects use a custom SVG chevron
+      (the native dark-mode arrow renders light-on-light on Windows)
 
-## Overview
+motion:
+  entrance: "rise-in — fade up 8px / 200ms, once per navigation"
+  press: "scale(0.98) on :active"
+  hover: "border-colour lifts to {border-strong}; never the fill — keeps text contrast identical between rest and hover"
+  processing: "status dot pulses (now-pulse 2s) so 'still working' is legible without reading"
+  reduced-motion: "prefers-reduced-motion kills all animation and transition"
 
-Self Planner is a calm, focused workspace — a personal planner, not a marketing
-site. The design is **glassmorphism on a dark canvas**: a deep navy field
-(`#0a0d16`) lit by a soft violet radial glow in the top-left and a faint sky glow
-bottom-right, with content sitting on **translucent frosted-glass panels** —
-low-alpha white fills, 1px hairline borders, and an 18px backdrop blur that lets
-the glow bleed through. One violet accent (`#7c5cff`) does all the work: active
-nav, primary buttons, calendar "today", focus rings. Everything else is white at
-graded opacity.
+contrast:
+  standard: "WCAG AA — 4.5:1 for text, 3:1 for UI graphics"
+  method: >
+    Glass makes contrast positional. Do not sample a flat token. Composite
+    panel-alpha OVER glow-peak OVER canvas, then measure text against THAT.
+    Check three backdrops per theme (plain canvas, glow-a peak, glow-b peak)
+    and four surfaces per backdrop: surface, surface + sheen, surface-2 nested
+    on the sheen, and accent-soft over the sheen. The sheen is the trap — white
+    layers COMPOUND, so panel(4.5%) + sheen(5%) + surface-2(5%) is ~14%
+    cumulative white, and that stack is what binds the muted ramp.
+  status: "All pairs pass in both themes at every glow position (verified 2026-07-21)"
+  tightest-pairs:
+    - "dark text-faint on surface-2 stacked on the sheen over the violet hotspot — 4.51:1"
+    - "light text-faint on accent-soft — 4.65:1"
+    - "light accent-text on accent-soft — 5.07:1"
+  a11y-invariants:
+    - "Collapsed sidebar rows keep aria-label + title — icons alone are not accessible names"
+    - "Bell badge is absent at zero (never '0') and carries an aria-label naming the count"
+    - "Touch targets >=44px below 768px"
+    - ":focus-visible 2px accent ring, outline-offset 2px so it clears pill radii"
 
-Type pairs **Space Grotesk** (geometric, slightly technical) for headings with
-**Inter** for body — the display face is the "this was designed" signal; Inter
-keeps long lists readable. Both self-host via `next/font` so the offline Docker
-build has no runtime font fetch.
-
-The reference is the calm end of the glass spectrum — Linear, Raycast, the PeopleOS
-dashboard — not neon cyberpunk. Depth comes from blur and hairlines, never heavy
-drop shadows.
-
-**Key characteristics:**
-- Deep navy canvas `{colors.bg}` with fixed violet + sky radial glows
-- Frosted-glass panels: ≤6% white fill, hairline border, `blur(18px)`, 16px radius
-- One structural accent — violet `{colors.accent}` — for every action and active state
-- Space Grotesk display over Inter body, self-hosted
-- Fixed 250px glass sidebar (desktop) → hamburger slide-over drawer (≤768px)
-- Dark-first; light theme is a frosted-daylight override on the same variables
-
-## Layout
-
-**App shell.** A fixed 250px glass sidebar holds the logo, three eyebrow-labelled
-nav groups (OVERVIEW / PLANNING / SETTINGS) with inline SVG line icons, a theme
-toggle, and a user card pinned to the bottom. The content column has a sticky top
-bar (page title · ⌘K search pill · date) over a centered 1120px main area.
-
-**Mobile (≤768px).** Sidebar hides; a hamburger in the top bar opens a focus-trapped
-glass drawer (Esc / backdrop-tap closes). Content goes full-width.
-
-**Dashboard grid.** Two columns: primary task list (high-priority spotlight card +
-"everything else") on the left, mini calendar + Today schedule on the right.
-Collapses to one column at 900px.
-
-## Color usage
-
-- **Accent is precious.** `{colors.accent}` paints active nav, primary buttons,
-  the calendar's "today", `:focus-visible` rings, and monospace time labels. Never
-  decorative.
-- **Hierarchy by opacity, not hue.** Primary text 92%, secondary 55%, faint 35%.
-- **Semantic hairlines.** Overdue/at-risk items signal with a colored border, not
-  a filled background — keeps the glass calm.
-- **Glass fill stays ≤6%** on the dark canvas so body text clears 4.5:1 contrast.
-
-## Motion
-- Entrance: `main` children fade up 8px over 200ms per navigation.
-- Hover: panel borders brighten toward `{colors.border-strong}`.
-- Press: buttons `scale(0.98)`.
-- All motion disabled under `prefers-reduced-motion`.
-
-## Accessibility
-- Text on glass ≥ 4.5:1 (guaranteed by the ≤6% panel alpha over `#0a0d16`).
-- `:focus-visible` = 2px violet ring, 2px offset, on every interactive element.
-- Touch targets ≥ 44px on mobile (nav rows, hamburger, buttons).
-- Mobile drawer is `role="dialog" aria-modal` with a focus trap.
-- `@supports not (backdrop-filter)` → panels fall back to solid `#141827`.
-
-## Light theme
-`[data-theme="light"]` overrides the same CSS variables: canvas `#eef0f5`, glass
-`rgba(255,255,255,0.6)`, ink text, darker accent `#6847f0` for contrast. Toggled
-from the sidebar footer; persisted in `localStorage` and applied pre-paint via an
-inline script to avoid a flash. It is a genuine second surface but deliberately
-secondary — the app is designed dark-first.
-
-## Do's and Don'ts
-
-### Do
-- Reserve `{colors.accent}` for actions, active state, and focus — nothing else.
-- Build every card from the `glass-panel` recipe so all surfaces read as one system.
-- Set headings in Space Grotesk with its negative tracking; body in Inter at 400.
-- Signal danger/warn with a colored hairline border, not a filled panel.
-- Keep the glow fixed (`background-attachment: fixed`) so it anchors the canvas.
-
-### Don't
-- Don't add a second accent hue — violet is the only structural color.
-- Don't raise glass fill above ~8% — text contrast breaks and the frost turns milky.
-- Don't use heavy drop shadows; depth is blur + hairline.
-- Don't put emoji in the chrome (nav, buttons) — inline SVG icons only.
-- Don't ship dead controls; the ⌘K search filters real loaded tasks & meetings.
+not-in-this-system:
+  - "Decorative gradients on controls — this is app UI; the accent alone carries hierarchy, and violet gradients are the top AI-slop tell"
+  - "Zebra striping"
+  - "Avatars on single-owner lists — an avatar that is always the same avatar is decoration, not identity"
+  - "A tenancy/context card in the top bar — Self Planner has one user and no tenancy"

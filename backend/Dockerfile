@@ -8,12 +8,9 @@ WORKDIR /app
 # CPU-only torch first so pyannote.audio doesn't drag in the multi-GB CUDA wheels.
 # torchcodec too: the default PyPI wheel links against CUDA 13 (libnvrtc.so.13)
 # which isn't in this image — the CPU build decodes fine for pyannote.
+# Transcription runs on the gateway, so no CUDA runtime libs are needed here —
+# torch is present only to serve pyannote diarization.
 RUN pip install --no-cache-dir torch torchaudio torchcodec --index-url https://download.pytorch.org/whl/cpu
-
-# CUDA runtime libs for faster-whisper (CTranslate2 needs cuBLAS + cuDNN 9);
-# pip wheels keep the image on python:slim instead of an nvidia/cuda base
-RUN pip install --no-cache-dir nvidia-cublas-cu12 "nvidia-cudnn-cu12==9.*"
-ENV LD_LIBRARY_PATH=/usr/local/lib/python3.12/site-packages/nvidia/cublas/lib:/usr/local/lib/python3.12/site-packages/nvidia/cudnn/lib
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt

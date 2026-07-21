@@ -22,16 +22,16 @@ class Settings(BaseSettings):
     minio_secret_key: str = "minioadmin"
     minio_bucket: str = "meetings-audio"
     minio_secure: bool = False
-    # ASR backend: "local" = faster-whisper on this machine; "gateway" = the
-    # OpenAI-compatible gateway's /v1/audio/transcriptions (reuses LLM creds).
-    asr_provider: str = "local"
-    asr_model: str = "whisper-large-v3"  # gateway ASR model when asr_provider=gateway
-    whisper_model: str = "small"
-    whisper_device: str = "cpu"
-    whisper_compute: str = "int8"
-    # "translate" = always output English; "transcribe" = keep the spoken language.
-    # Local-only: the gateway is transcribe-only and ignores this.
-    whisper_task: str = "translate"
+    # Transcription runs on the OpenAI-compatible gateway's
+    # /v1/audio/transcriptions (reuses LLM creds). There is no local ASR.
+    asr_model: str = "whisper-large-v3"
+    # Voice reply (text-to-speech) via the gateway's /v1/audio/speech. All choices
+    # are settings-driven so the model/voice can be swapped without code changes;
+    # tts_model must be one of the gateway's live audio models (see the dashboard).
+    tts_provider: str = "gateway"  # "gateway" = /v1/audio/speech; "off" disables voice replies
+    tts_model: str = "tts-1"       # gateway audio model id, e.g. an OpenAI-compatible TTS route
+    tts_voice: str = "alloy"       # voice name accepted by the chosen model
+    tts_format: str = "mp3"        # mp3|opus|aac|flac|wav — mp3 plays everywhere
     max_upload_mb: int = 200
     # Gateway/OpenAI-compatible LLM config
     llm_base_url: str = ""

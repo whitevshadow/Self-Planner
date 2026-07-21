@@ -40,13 +40,22 @@ export default function MeetingsPage() {
     <>
       <div className="page-header">
         <h1>Meetings</h1>
-        <span className="muted">Upload a recording — tasks are extracted automatically</span>
+        <span className="muted">
+          {meetings
+            ? `${meetings.length} meeting${meetings.length === 1 ? "" : "s"} — tasks are extracted automatically`
+            : "Upload a recording — tasks are extracted automatically"}
+        </span>
       </div>
 
-      <RecordButton onUploaded={refresh} />
-      <UploadForm onUploaded={refresh} />
+      {/* Record and upload are the same job — one panel, two routes in. */}
+      <section className="new-meeting" aria-label="Add a meeting">
+        <RecordButton onUploaded={refresh} />
+        <div className="new-meeting-or">or add an existing recording</div>
+        <UploadForm onUploaded={refresh} />
+      </section>
 
       {error && <div className="error-banner">Backend unreachable: {error}</div>}
+      {meetings && meetings.length > 0 && <h2 className="list-title">Past meetings</h2>}
       {meetings === null && !error && (
         <div aria-hidden>
           <div className="shimmer" />

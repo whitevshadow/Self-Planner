@@ -4,10 +4,24 @@ import { useEffect, useRef, useState } from "react";
 import Sidebar from "@/components/Sidebar";
 import TopBar from "@/components/TopBar";
 
-/** App shell: fixed glass sidebar (desktop) / slide-over drawer (mobile). */
+/** App shell: inset sidebar panel (desktop) / slide-over drawer (mobile). */
 export default function Shell({ children }: { children: React.ReactNode }) {
   const [drawer, setDrawer] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const drawerRef = useRef<HTMLDivElement>(null);
+
+  // Restore the rail state after mount. Reading localStorage during render
+  // would desync server and client HTML, so the first paint is always expanded.
+  useEffect(() => {
+    setCollapsed(localStorage.getItem("sidebarCollapsed") === "true");
+  }, []);
+
+  function toggleCollapsed() {
+    setCollapsed((prev) => {
+      localStorage.setItem("sidebarCollapsed", String(!prev));
+      return !prev;
+    });
+  }
 
   // Focus trap + Esc for the mobile drawer (it acts as a modal dialog).
   useEffect(() => {
@@ -30,9 +44,9 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   }, [drawer]);
 
   return (
-    <div className="shell">
+    <div className="shell" data-collapsed={collapsed ? "true" : undefined}>
       <aside className="sidebar">
-        <Sidebar />
+        <Sidebar collapsed={collapsed} onToggleCollapse={toggleCollapsed} />
       </aside>
       {drawer && (
         <>

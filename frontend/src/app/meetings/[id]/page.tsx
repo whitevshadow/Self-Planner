@@ -168,7 +168,7 @@ export default function MeetingPage({ params }: { params: Promise<{ id: string }
       </Link>
       <div className="page-header" style={{ marginTop: "0.75rem" }}>
         <h1>{meeting.title}</h1>
-        <span className={`badge ${meeting.status}`}>{meeting.status}</span>
+        <span className={`status-pill ${meeting.status}`}>{meeting.status}</span>
       </div>
       <div className="muted">
         {new Date(meeting.created_at).toLocaleString()} · {formatDuration(meeting.duration_sec)} ·{" "}

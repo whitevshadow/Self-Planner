@@ -45,7 +45,7 @@ export default function SummaryCard({ meeting }: { meeting: MeetingDetail }) {
         </>
       )}
       {meeting.notes && (
-        <details className="notes-details" open>
+        <details className="notes-details">
           <summary>Full meeting notes</summary>
           <MeetingNotes notes={meeting.notes} />
         </details>

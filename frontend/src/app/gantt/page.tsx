@@ -43,6 +43,15 @@ export default function GanttPage() {
         readonly: true,
         today_button: true,
       });
+      // frappe-gantt parks "today" flush against the left edge, which clips the
+      // label of every bar that started earlier. Anchor off the today marker
+      // (frappe sets its scroll on a later frame, so read position, not scroll).
+      requestAnimationFrame(() => {
+        const scroller = ref.current?.querySelector<HTMLElement>(".gantt-container");
+        const today = ref.current?.querySelector<HTMLElement>(".current-highlight");
+        if (!scroller || !today) return;
+        scroller.scrollLeft = Math.max(0, parseFloat(today.style.left) - 80);
+      });
     });
   }, [tasks, mode]);
 
@@ -55,12 +64,19 @@ export default function GanttPage() {
         <span className="muted">Open tasks laid out from start date to due date</span>
       </div>
 
-      <div className="filters">
-        {(["Day", "Week", "Month"] as const).map((m) => (
-          <button key={m} className={mode === m ? "" : "mini ghost"} onClick={() => setMode(m)}>
-            {m}
-          </button>
-        ))}
+      <div className="filter-bar">
+        <div className="segmented" role="group" aria-label="Timeline scale">
+          {(["Day", "Week", "Month"] as const).map((m) => (
+            <button
+              key={m}
+              className={mode === m ? "active" : ""}
+              aria-pressed={mode === m}
+              onClick={() => setMode(m)}
+            >
+              {m}
+            </button>
+          ))}
+        </div>
       </div>
 
       {error && <div className="error-banner">{error}</div>}

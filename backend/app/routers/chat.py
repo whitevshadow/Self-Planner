@@ -28,6 +28,13 @@ def chat_message(body: ChatIn, db: Session = Depends(get_db)):
         raise HTTPException(500, f"Chat failed: {exc}")
 
 
+@router.delete("/chat", status_code=204)
+def chat_clear(db: Session = Depends(get_db)):
+    """Start a new chat: wipe the conversation history."""
+    db.query(ChatMessage).delete()
+    db.commit()
+
+
 @router.post("/timetable/parse", response_model=list[TimetableEntry])
 def timetable_parse(file: UploadFile = File(...)):
     """Parse a timetable file to a PREVIEW — nothing is saved yet."""

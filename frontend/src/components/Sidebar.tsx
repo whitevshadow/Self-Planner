@@ -79,8 +79,17 @@ function applyTheme(theme: string) {
   localStorage.setItem("theme", theme);
 }
 
-/** Sidebar nav — also rendered inside the mobile glass drawer. */
-export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
+/** Sidebar nav — also rendered inside the mobile glass drawer.
+ * `collapsed` renders the 64px icon rail; the drawer never collapses. */
+export default function Sidebar({
+  onNavigate,
+  collapsed = false,
+  onToggleCollapse,
+}: {
+  onNavigate?: () => void;
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
+}) {
   const pathname = usePathname();
   const [theme, setTheme] = useState("dark");
 
@@ -98,16 +107,33 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
 
   return (
     <>
-      <Link href="/" className="sb-logo" onClick={onNavigate}>
-        <div className="sb-logo-mark">S</div>
-        <div>
-          <div className="sb-logo-name">Self Planner</div>
-          <div className="sb-logo-sub">AI Meeting Assistant</div>
-        </div>
-      </Link>
+      <div className="sb-head">
+        <Link href="/" className="sb-logo" onClick={onNavigate} aria-label="Self Planner — dashboard">
+          <div className="sb-logo-mark">S</div>
+          <div>
+            <div className="sb-logo-name">Self Planner</div>
+            <div className="sb-logo-sub">AI Meeting Assistant</div>
+          </div>
+        </Link>
+        {onToggleCollapse && (
+          <button
+            className="sb-collapse"
+            onClick={onToggleCollapse}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <rect x="3" y="4" width="18" height="16" rx="2" />
+              <path d="M9 4v16" />
+            </svg>
+          </button>
+        )}
+      </div>
       {GROUPS.map((g) => (
         <div key={g.label}>
           <div className="sb-eyebrow">{g.label}</div>
+          {/* Collapsed, the eyebrow text is hidden — a rule keeps the grouping. */}
+          <div className="sb-eyebrow-rule" aria-hidden />
           {g.links.map(({ href, label, icon }) => {
             const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
             return (
@@ -116,17 +142,24 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                 href={href}
                 className={`sb-row ${active ? "active" : ""}`}
                 aria-current={active ? "page" : undefined}
+                aria-label={label}
+                title={collapsed ? label : undefined}
                 onClick={onNavigate}
               >
                 {ICONS[icon]}
-                {label}
+                <span className="sb-label">{label}</span>
               </Link>
             );
           })}
         </div>
       ))}
       <div className="sb-footer">
-        <button className="theme-toggle" onClick={toggleTheme}>
+        <button
+          className="theme-toggle"
+          onClick={toggleTheme}
+          aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          title={theme === "dark" ? "Light Mode" : "Dark Mode"}
+        >
           {theme === "dark" ? (
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8">
               <circle cx="12" cy="12" r="4" />
@@ -137,13 +170,14 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
               <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z" />
             </svg>
           )}
-          {theme === "dark" ? "Light Mode" : "Dark Mode"}
+          <span>{theme === "dark" ? "Light Mode" : "Dark Mode"}</span>
         </button>
         <div className="sb-user">
           <div className="sb-avatar">AN</div>
           <div>
             <div className="sb-user-name">Anish</div>
             <div className="sb-user-sub">Personal plan</div>
+            <span className="sb-role">Personal</span>
           </div>
         </div>
       </div>
