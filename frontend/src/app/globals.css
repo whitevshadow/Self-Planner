@@ -138,11 +138,23 @@ a {
   text-decoration: none;
 }
 
-/* Let the chat page fill the entire available window */
+/* The chat page scrolls internally, so the shell must be pinned to the viewport
+   height — otherwise the shell's 10px padding and the appbar's margin push the
+   total past 100vh and the whole document scrolls behind the sticky chrome. */
+.shell:has(.chat-box) {
+  height: 100vh;
+  overflow: hidden;
+}
+
+.shell:has(.chat-box) .content {
+  min-height: 0; /* let the flex child shrink instead of overflowing */
+}
+
 main:has(> .chat-box) {
   max-width: none;
   padding: 0;
   flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1620,10 +1632,15 @@ button.mini.ghost {
   margin-left: auto;
 }
 
+/* Glass panel like every other surface, rather than an edge-to-edge slab. */
 .chat-box {
   background: var(--surface);
-  border: none;
-  border-radius: 0;
+  background-image: var(--sheen);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--glass-shadow), var(--edge-hi);
+  backdrop-filter: blur(var(--blur)) saturate(165%);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(165%);
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -1747,6 +1764,256 @@ button.mini.ghost {
 .chat-tool-check {
   color: #3fb950;
   font-weight: 700;
+}
+
+/* ── Live step timeline ───────────────────────────────────────────────
+   The agent spends a turn in a tool loop, so this replaces dead typing-dot
+   time with a running account of what it is actually doing. */
+.chat-steps {
+  align-self: center;
+  width: 100%;
+  max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0.55rem 0.7rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.chat-step {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  padding: 0.22rem 0.1rem;
+}
+
+.chat-step-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--text-faint);
+}
+
+.chat-step.running .chat-step-dot {
+  background: var(--accent);
+  animation: now-pulse 1.4s ease-out infinite;
+}
+
+.chat-step.done .chat-step-dot {
+  background: var(--success);
+}
+
+.chat-step.error .chat-step-dot {
+  background: var(--danger);
+}
+
+.chat-step.running .chat-step-label {
+  color: var(--text);
+}
+
+.chat-step.error .chat-step-label {
+  color: var(--danger);
+}
+
+.chat-step-detail {
+  margin-left: auto;
+  font-size: 0.72rem;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  flex-shrink: 0;
+}
+
+/* ── Task result card ─────────────────────────────────────────────────
+   These tasks are already real; this is a result, not a confirmation.
+   Tick completes, Undo deletes. */
+.chat-taskcard {
+  align-self: center;
+  width: 100%;
+  max-width: 640px;
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  border-radius: var(--radius);
+  padding: 0.7rem 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.chat-taskcard-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  margin-bottom: 0.35rem;
+}
+
+.chat-taskcard-title {
+  font-weight: 650;
+  font-size: 0.85rem;
+}
+
+.chat-taskcard-head .muted {
+  margin-left: auto;
+  font-size: 0.72rem;
+}
+
+.chat-taskrow {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding: 0.45rem 0.1rem;
+  border-top: 1px solid var(--border);
+}
+
+.chat-taskrow:first-of-type {
+  border-top: none;
+}
+
+.chat-taskrow input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.chat-taskrow-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.chat-taskrow-title {
+  font-size: 0.87rem;
+  font-weight: 550;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.chat-taskrow.done .chat-taskrow-title {
+  text-decoration: line-through;
+  color: var(--text-dim);
+}
+
+.chat-taskrow-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.25rem;
+  font-size: 0.74rem;
+  color: var(--text-dim);
+}
+
+/* Destructive action stays quiet until the row is engaged with. */
+.chat-taskrow .ghost-danger {
+  opacity: 0;
+  flex-shrink: 0;
+  transition: opacity 0.12s ease;
+}
+
+.chat-taskrow:hover .ghost-danger,
+.chat-taskrow .ghost-danger:focus-visible {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .chat-taskrow .ghost-danger {
+    opacity: 1;
+  }
+}
+
+.chat-taskcard-error {
+  font-size: 0.78rem;
+  color: var(--danger);
+  margin-top: 0.4rem;
+}
+
+/* ── Markdown inside an assistant bubble ──────────────────────────────
+   Tight vertical rhythm: a chat bubble is not a document. */
+.chat-msg .markdown > *:first-child { margin-top: 0; }
+.chat-msg .markdown > *:last-child { margin-bottom: 0; }
+
+.chat-msg .markdown p {
+  margin: 0.35rem 0;
+}
+
+.chat-msg .markdown h1,
+.chat-msg .markdown h2,
+.chat-msg .markdown h3 {
+  font-size: 0.92rem;
+  font-weight: 650;
+  margin: 0.7rem 0 0.3rem;
+}
+
+.chat-msg .markdown ul,
+.chat-msg .markdown ol {
+  margin: 0.3rem 0;
+  padding-left: 1.15rem;
+}
+
+.chat-msg .markdown li {
+  margin: 0.15rem 0;
+}
+
+/* GFM task lists render as disabled checkboxes — align them with the text. */
+.chat-msg .markdown li:has(> input[type="checkbox"]) {
+  list-style: none;
+  margin-left: -1.15rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.chat-msg .markdown input[type="checkbox"] {
+  accent-color: var(--accent);
+  margin-top: 3px;
+  flex-shrink: 0;
+}
+
+.chat-msg .markdown code {
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 0.05rem 0.3rem;
+  font-size: 0.85em;
+}
+
+.chat-msg .markdown pre {
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 0.7rem;
+  overflow-x: auto;
+  margin: 0.45rem 0;
+}
+
+.chat-msg .markdown pre code {
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+.chat-msg .markdown table {
+  border-collapse: collapse;
+  margin: 0.45rem 0;
+  font-size: 0.82rem;
+}
+
+.chat-msg .markdown th,
+.chat-msg .markdown td {
+  border: 1px solid var(--border-strong);
+  padding: 0.25rem 0.5rem;
+  text-align: left;
+}
+
+.chat-msg .markdown a {
+  color: var(--accent-text);
+  text-decoration: underline;
 }
 
 /* Empty state / welcome screen */

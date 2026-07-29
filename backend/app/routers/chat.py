@@ -1,6 +1,9 @@
+import json
+import logging
 from datetime import time as dt_time
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -9,6 +12,8 @@ from ..models import BusyBlock, ChatMessage
 from ..schemas import ChatIn, ChatMessageOut, TimetableEntry
 from ..services import chat_agent, timetable
 from ..services.timetable import DAY_MAP
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["chat"])
 
@@ -26,6 +31,36 @@ def chat_message(body: ChatIn, db: Session = Depends(get_db)):
     except Exception as exc:
         db.rollback()
         raise HTTPException(500, f"Chat failed: {exc}")
+
+
+@router.post("/chat/stream")
+def chat_message_stream(body: ChatIn, db: Session = Depends(get_db)):
+    """Same turn as POST /chat, streamed as Server-Sent Events.
+
+    The agent spends most of a turn inside its tool loop (query -> add -> replan),
+    so the useful thing to stream is STEPS, not tokens: the model emits one JSON
+    object per turn, which is not meaningfully parseable until its closing brace.
+    """
+
+    def events():
+        try:
+            for event in chat_agent.stream_message(db, body.message):
+                payload = {k: v for k, v in event.items() if k != "_obj"}
+                yield f"data: {json.dumps(payload, default=str)}\n\n"
+        except Exception as exc:  # never leave the client hanging on a dead stream
+            db.rollback()
+            logger.exception("chat stream failed")
+            yield f"data: {json.dumps({'type': 'error', 'detail': str(exc)})}\n\n"
+
+    return StreamingResponse(
+        events(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",  # stop nginx/proxies from buffering the stream
+        },
+    )
 
 
 @router.delete("/chat", status_code=204)

@@ -409,8 +409,73 @@ export interface TimetableEntry {
   label: string;
 }
 
+/** A task the agent just created, surfaced live so the UI can list it. */
+export interface ChatTask {
+  id: string;
+  title: string;
+  due_date: string | null;
+  priority: "high" | "medium" | "low" | null;
+  category: "work" | "personal";
+  estimated_minutes: number | null;
+  status: "open" | "done" | "dropped";
+}
+
+export type ChatEvent =
+  | { type: "message"; id: string; role: ChatMessage["role"]; content: string;
+      tool_calls: ChatMessage["tool_calls"]; created_at: string | null }
+  | { type: "step"; key: number; tool: string; label: string;
+      status: "running" | "done" | "error"; detail?: string | null }
+  | { type: "tasks"; tasks: ChatTask[] }
+  | { type: "done" }
+  | { type: "error"; detail: string };
+
 export async function getChatHistory(): Promise<ChatMessage[]> {
   return handle(await fetch(`${API_BASE}/chat`, { cache: "no-store" }));
+}
+
+/** Send a message and receive agent progress as Server-Sent Events.
+ *
+ * EventSource can't POST, so this reads the body stream by hand. SSE frames are
+ * separated by a blank line and can split across chunk boundaries, so we buffer
+ * until we see the terminator rather than parsing per chunk.
+ */
+export async function streamChat(
+  message: string,
+  onEvent: (e: ChatEvent) => void,
+  signal?: AbortSignal
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/chat/stream`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message }),
+    signal,
+  });
+  if (!res.ok) throw new Error(`${res.status}: ${(await res.text()).slice(0, 300)}`);
+  if (!res.body) throw new Error("Streaming is not supported by this browser");
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    let cut: number;
+    while ((cut = buffer.indexOf("\n\n")) !== -1) {
+      const frame = buffer.slice(0, cut);
+      buffer = buffer.slice(cut + 2);
+      for (const line of frame.split("\n")) {
+        if (!line.startsWith("data:")) continue;
+        try {
+          onEvent(JSON.parse(line.slice(5).trim()) as ChatEvent);
+        } catch {
+          // A malformed frame shouldn't kill an otherwise healthy stream.
+        }
+      }
+    }
+  }
 }
 
 export async function sendChat(message: string): Promise<ChatMessage[]> {

@@ -1,18 +1,29 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import ChatTaskCard from "@/components/ChatTaskCard";
 import {
   clearChat,
   confirmTimetable,
   getChatHistory,
+  listTasks,
   parseTimetable,
   sendChat,
   speakText,
+  streamChat,
   transcribeAudio,
   voiceEnabled,
+  type ChatEvent,
   type ChatMessage,
+  type ChatTask,
+  type Task,
   type TimetableEntry,
 } from "@/lib/api";
+
+/** A tool step in the live timeline. */
+type Step = { key: number; tool: string; label: string; status: "running" | "done" | "error"; detail?: string | null };
 
 const DAY_LABEL: Record<string, string> = {
   mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat", sun: "Sun",
@@ -43,6 +54,30 @@ function toolLabel(tool: string | undefined): string {
   }
 }
 
+/** Task ids a persisted tool message created, pulled back out of its JSON result.
+ *  Lets the result card survive a reload instead of only existing mid-turn. */
+function createdIds(m: ChatMessage): string[] {
+  const tool = m.tool_calls?.[0]?.tool;
+  if (m.role !== "tool" || (tool !== "add_task" && tool !== "add_tasks")) return [];
+  try {
+    const r = JSON.parse(m.content);
+    if (r?.created_task_id) return [r.created_task_id];
+    if (Array.isArray(r?.created)) {
+      return r.created.map((c: { created_task_id?: string }) => c?.created_task_id).filter(Boolean);
+    }
+  } catch {
+    // Tool results are usually JSON but errors are plain strings — no card then.
+  }
+  return [];
+}
+
+function asChatTask(t: Task): ChatTask {
+  return {
+    id: t.id, title: t.title, due_date: t.due_date, priority: t.priority,
+    category: t.category, estimated_minutes: t.estimated_minutes, status: t.status,
+  };
+}
+
 export default function ChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -50,6 +85,11 @@ export default function ChatPage() {
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<TimetableEntry[] | null>(null);
   const [confirming, setConfirming] = useState(false);
+  // Live turn state — cleared once the turn is persisted and re-read.
+  const [steps, setSteps] = useState<Step[]>([]);
+  const [liveTasks, setLiveTasks] = useState<ChatTask[]>([]);
+  // Lookup so persisted tool messages can render their task card after reload.
+  const [taskById, setTaskById] = useState<Record<string, Task>>({});
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -155,7 +195,12 @@ export default function ChatPage() {
 
   const refresh = useCallback(async () => {
     try {
-      setMessages(await getChatHistory());
+      const [history, tasks] = await Promise.all([
+        getChatHistory(),
+        listTasks().catch((): Task[] => []),
+      ]);
+      setMessages(history);
+      setTaskById(Object.fromEntries(tasks.map((t) => [t.id, t])));
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load chat");
@@ -184,18 +229,40 @@ export default function ChatPage() {
       if (!text || busy) return;
       setInput("");
       setBusy(true);
+      setSteps([]);
+      setLiveTasks([]);
       setMessages((m) => [
         ...m,
         { id: "tmp", role: "user", content: text, tool_calls: null, created_at: new Date().toISOString() },
       ]);
       try {
-        await sendChat(text);
+        let streamError: string | null = null;
+        await streamChat(text, (e: ChatEvent) => {
+          if (e.type === "step") {
+            // Same key arrives twice: running, then done/error. Replace in place
+            // so a step animates rather than the list growing.
+            setSteps((prev) => {
+              const i = prev.findIndex((s) => s.key === e.key);
+              const next: Step = { key: e.key, tool: e.tool, label: e.label, status: e.status, detail: e.detail };
+              if (i === -1) return [...prev, next];
+              const copy = [...prev];
+              copy[i] = next;
+              return copy;
+            });
+          } else if (e.type === "tasks") {
+            setLiveTasks((prev) => [...prev, ...e.tasks]);
+          } else if (e.type === "error") {
+            streamError = e.detail;
+          }
+        });
         await refresh();
-        setError(null);
+        setError(streamError);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Send failed");
       } finally {
         setBusy(false);
+        setSteps([]);
+        setLiveTasks([]);
       }
     },
     [busy, refresh]
@@ -290,22 +357,52 @@ export default function ChatPage() {
             </div>
           )}
 
-          {messages.map((m) =>
-            m.role === "tool" ? (
-              <div className="chat-tool" key={m.id} title={m.content}>
-                <span className="chat-tool-check">✓</span> {toolLabel(m.tool_calls?.[0]?.tool)}
-              </div>
-            ) : (
+          {messages.map((m) => {
+            if (m.role === "tool") {
+              // Tasks this tool created, resolved against the live task list.
+              // A deleted task drops out of the lookup, so the card shrinks.
+              const created = createdIds(m).map((id) => taskById[id]).filter(Boolean);
+              return (
+                <div key={m.id}>
+                  <div className="chat-tool" title={m.content}>
+                    <span className="chat-tool-check">✓</span> {toolLabel(m.tool_calls?.[0]?.tool)}
+                  </div>
+                  {created.length > 0 && <ChatTaskCard tasks={created.map(asChatTask)} />}
+                </div>
+              );
+            }
+            return (
               <div className={`chat-row ${m.role}`} key={m.id}>
                 {m.role === "assistant" && <div className="chat-avatar">S</div>}
                 <div className={`chat-msg ${m.role}`}>
-                  {m.content.split("\n").map((line, i) => (
-                    <div key={i}>{line || " "}</div>
-                  ))}
+                  {/* Assistant replies are Markdown. User text stays plain on
+                      purpose — it is untrusted input. */}
+                  {m.role === "assistant" ? (
+                    <div className="markdown">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
+                    </div>
+                  ) : (
+                    m.content.split("\n").map((line, i) => <div key={i}>{line || " "}</div>)
+                  )}
                 </div>
               </div>
-            )
+            );
+          })}
+
+          {/* Live turn: what the agent is doing, while it does it. */}
+          {busy && steps.length > 0 && (
+            <div className="chat-steps" role="status" aria-live="polite">
+              {steps.map((s) => (
+                <div className={`chat-step ${s.status}`} key={s.key}>
+                  <span className="chat-step-dot" aria-hidden />
+                  <span className="chat-step-label">{s.label}</span>
+                  {s.detail && <span className="chat-step-detail">{s.detail}</span>}
+                </div>
+              ))}
+            </div>
           )}
+
+          {busy && liveTasks.length > 0 && <ChatTaskCard tasks={liveTasks} />}
 
           {busy && (
             <div className="chat-row assistant">

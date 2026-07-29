@@ -1,3 +1,5 @@
+name: self_planner
+
 services:
   db:
     image: pgvector/pgvector:pg16
@@ -11,46 +13,55 @@ services:
       test: ["CMD-SHELL", "pg_isready -U planner -d self_planner"]
       interval: 5s
       timeout: 3s
-      retries: 10
+      retries: 20
 
   minio:
     image: minio/minio
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
     ports: ["9000:9000", "9001:9001"]
     volumes: [miniodata:/data]
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
+      # curl is present in the image; the liveness route needs no credentials.
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 5s
       timeout: 3s
-      retries: 10
+      retries: 20
 
   backend:
     build: ./backend
-    # Single root .env supplies gateway creds, models and ASR config.
-    env_file: .env
+    # Optional: the root .env supplies gateway creds, models and ASR config.
+    # required:false so a fresh clone boots without one (see .env.example).
+    env_file:
+      - path: .env
+        required: false
     environment:
-      # Container-network overrides (win over env_file). localhost inside the
-      # container is the container itself, so DB/MinIO/gateway are reached over
-      # docker networks by service/alias name. The gateway (litellm-app) runs in
-      # its own compose project; we join its network and reach it as "app:1050".
+      # Container-network overrides (these win over env_file). "localhost"
+      # inside the container is the container itself, so DB/MinIO are reached
+      # by compose service name, and the LLM/STT gateway — which runs outside
+      # this compose project — is reached on the Docker host.
       DATABASE_URL: postgresql+psycopg2://planner:planner@db:5432/self_planner
       MINIO_ENDPOINT: minio:9000
-      LLM_BASE_URL: http://app:1050/v1
-    networks:
-      - default
-      - gateway
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+      MINIO_BUCKET: ${MINIO_BUCKET:-meetings-audio}
+      MINIO_SECURE: "false"
+      # Override with GATEWAY_URL in .env if the gateway lives elsewhere.
+      LLM_BASE_URL: ${GATEWAY_URL:-http://host.docker.internal:1050/v1}
+    extra_hosts:
+      # Makes host.docker.internal resolve on Linux too (no-op on Desktop).
+      - "host.docker.internal:host-gateway"
     ports: ["8000:8000"]
     volumes: [hfcache:/root/.cache]
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
+    healthcheck:
+      # No curl in python:slim — use the interpreter that is guaranteed present.
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8000/api/health').read()"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
     depends_on:
       db:
         condition: service_healthy
@@ -58,18 +69,23 @@ services:
         condition: service_healthy
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        # Baked into the bundle at build time; this URL is resolved by the
+        # browser on the host, not from inside the container.
+        NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:-http://localhost:8000/api}
     ports: ["3000:3000"]
-    depends_on: [backend]
-
-networks:
-  # The LLM/STT gateway (litellm-app) lives in its own compose project; join
-  # its existing network so the backend reaches it as "app:1050".
-  gateway:
-    external: true
-    name: litellm_default
+    depends_on:
+      backend:
+        condition: service_healthy
 
 volumes:
   pgdata:
   miniodata:
   hfcache:
+
+# GPU note: the backend image installs CPU-only torch and diarization is off by
+# default, so no nvidia runtime is required. To run local pyannote diarization
+# on a GPU host, add a `deploy.resources.reservations.devices` block for the
+# backend service in a docker-compose.override.yml.
